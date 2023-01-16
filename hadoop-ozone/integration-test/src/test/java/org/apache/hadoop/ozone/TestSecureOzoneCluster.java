@@ -261,9 +261,11 @@ public final class TestSecureOzoneCluster {
       stopMiniKdc();
       if (scm != null) {
         scm.stop();
+        scm.join();
       }
       if (om != null) {
         om.stop();
+        om.join();
       }
       IOUtils.closeQuietly(om);
       IOUtils.closeQuietly(omClient);
@@ -383,6 +385,7 @@ public final class TestSecureOzoneCluster {
     } finally {
       if (scm != null) {
         scm.stop();
+        scm.join();
       }
     }
   }
@@ -417,6 +420,7 @@ public final class TestSecureOzoneCluster {
     } finally {
       if (scm != null) {
         scm.stop();
+        scm.join();
       }
     }
   }
@@ -823,6 +827,7 @@ public final class TestSecureOzoneCluster {
     } finally {
       if (scm != null) {
         scm.stop();
+        scm.join();
       }
     }
 
@@ -864,9 +869,11 @@ public final class TestSecureOzoneCluster {
     } finally {
       if (scm != null) {
         scm.stop();
+        scm.join();
       }
       if (om != null) {
         om.stop();
+        om.join();
       }
       IOUtils.closeQuietly(om);
     }
@@ -1185,9 +1192,11 @@ public final class TestSecureOzoneCluster {
       GrpcOmTransport.setCaCerts(null);
       if (scm != null) {
         scm.stop();
+        scm.join();
       }
       if (om != null) {
         om.stop();
+        om.join();
       }
       IOUtils.closeQuietly(om);
     }
