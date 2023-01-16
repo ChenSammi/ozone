@@ -257,6 +257,7 @@ public class OMException extends IOException {
     VOLUME_IS_REFERENCED,
     TENANT_NOT_EMPTY,
 
-    FEATURE_NOT_ENABLED
+    FEATURE_NOT_ENABLED,
+    SSL_CONNECTION_FAILURE
   }
 }
