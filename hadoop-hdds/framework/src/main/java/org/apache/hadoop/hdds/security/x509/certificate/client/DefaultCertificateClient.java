@@ -97,6 +97,7 @@ import static org.apache.hadoop.hdds.security.x509.exception.CertificateExceptio
 import static org.apache.hadoop.hdds.security.x509.exception.CertificateException.ErrorCode.ROLLBACK_ERROR;
 import static org.apache.hadoop.hdds.utils.HddsServerUtil.getScmSecurityClientWithMaxRetry;
 
+import org.apache.hadoop.security.UserGroupInformation;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.slf4j.Logger;
@@ -110,10 +111,10 @@ public abstract class DefaultCertificateClient implements CertificateClient {
 
   private static final Random RANDOM = new SecureRandom();
 
-  private static final String CERT_FILE_NAME_FORMAT = "%s.crt";
-  private static final String CA_CERT_PREFIX = "CA-";
+  public static final String CERT_FILE_NAME_FORMAT = "%s.crt";
+  public static final String CA_CERT_PREFIX = "CA-";
   private static final int CA_CERT_PREFIX_LEN = 3;
-  private static final String ROOT_CA_CERT_PREFIX = "ROOTCA-";
+  public static final String ROOT_CA_CERT_PREFIX = "ROOTCA-";
   private static final int ROOT_CA_PREFIX_LEN = 7;
   private final Logger logger;
   private final SecurityConfig securityConfig;
@@ -145,6 +146,7 @@ public abstract class DefaultCertificateClient implements CertificateClient {
   private Runnable shutdownCallback;
   private SCMSecurityProtocolClientSideTranslatorPB scmSecurityProtocolClient;
   private Set<CertificateNotification> notificationReceivers;
+  private static UserGroupInformation ugi;
 
   DefaultCertificateClient(SecurityConfig securityConfig, Logger log,
       String certSerialId, String component,
@@ -1376,7 +1378,7 @@ public abstract class DefaultCertificateClient implements CertificateClient {
     if (scmSecurityProtocolClient == null) {
       scmSecurityProtocolClient =
           getScmSecurityClientWithMaxRetry(
-              (OzoneConfiguration) securityConfig.getConfiguration());
+              (OzoneConfiguration) securityConfig.getConfiguration(), ugi);
     }
     return scmSecurityProtocolClient;
   }
@@ -1385,6 +1387,11 @@ public abstract class DefaultCertificateClient implements CertificateClient {
   public void setSecureScmClient(
       SCMSecurityProtocolClientSideTranslatorPB client) {
     scmSecurityProtocolClient = client;
+  }
+
+  @VisibleForTesting
+  public static void setUgi(UserGroupInformation user) {
+    ugi = user;
   }
 
   public synchronized void startCertificateMonitor() {
