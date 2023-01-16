@@ -1090,6 +1090,7 @@ public final class TestSecureOzoneCluster {
    */
   @Test
   public void testOMGrpcServerCertificateRenew() throws Exception {
+    System.setProperty("java.net.preferIPv4Stack", "true");
     initSCM();
     try {
       scm = HddsTestUtils.getScmSimple(conf);

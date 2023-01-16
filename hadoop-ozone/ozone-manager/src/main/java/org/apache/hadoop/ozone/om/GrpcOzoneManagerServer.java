@@ -117,9 +117,8 @@ public class GrpcOzoneManagerServer {
 
   public void start() throws IOException {
     server.start();
-    LOG.info("{} is started using port {}", getClass().getSimpleName(),
-        server.getPort());
     port = server.getPort();
+    LOG.info("{} is started using port {}", getClass().getSimpleName(), port);
   }
 
   public void stop() {
