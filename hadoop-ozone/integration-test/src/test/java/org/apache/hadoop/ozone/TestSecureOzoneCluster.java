@@ -335,6 +335,7 @@ public final class TestSecureOzoneCluster {
   }
 
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testSecureScmStartupSuccess() throws Exception {
 
     initSCM();
@@ -346,6 +347,7 @@ public final class TestSecureOzoneCluster {
   }
 
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testSCMSecurityProtocol() throws Exception {
 
     initSCM();
@@ -391,6 +393,7 @@ public final class TestSecureOzoneCluster {
   }
 
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testAdminAccessControlException() throws Exception {
     initSCM();
     scm = HddsTestUtils.getScmSimple(conf);
@@ -449,6 +452,7 @@ public final class TestSecureOzoneCluster {
   }
 
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testSecureScmStartupFailure() throws Exception {
     initSCM();
     conf.set(HDDS_SCM_KERBEROS_KEYTAB_FILE_KEY, "");
@@ -490,6 +494,7 @@ public final class TestSecureOzoneCluster {
    * Tests the secure om Initialization Failure.
    */
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testSecureOMInitializationFailure() throws Exception {
     initSCM();
     // Create a secure SCM instance as om client will connect to it
@@ -504,6 +509,7 @@ public final class TestSecureOzoneCluster {
    * Tests the secure om Initialization success.
    */
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testSecureOmInitializationSuccess() throws Exception {
     initSCM();
     // Create a secure SCM instance as om client will connect to it
@@ -522,6 +528,7 @@ public final class TestSecureOzoneCluster {
   }
 
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testAccessControlExceptionOnClient() throws Exception {
     initSCM();
     // Create a secure SCM instance as om client will connect to it
@@ -582,6 +589,7 @@ public final class TestSecureOzoneCluster {
    * Tests delegation token renewal.
    */
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testDelegationTokenRenewal() throws Exception {
     GenericTestUtils
         .setLogLevel(LoggerFactory.getLogger(Server.class.getName()), INFO);
@@ -674,6 +682,7 @@ public final class TestSecureOzoneCluster {
   }
 
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testGetSetRevokeS3Secret() throws Exception {
 
     // Setup secure OM for start
@@ -768,6 +777,7 @@ public final class TestSecureOzoneCluster {
    * Tests functionality to init secure OM when it is already initialized.
    */
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testSecureOmReInit() throws Exception {
     LogCapturer omLogs =
         LogCapturer.captureLogs(OzoneManager.getLogger());
@@ -837,6 +847,7 @@ public final class TestSecureOzoneCluster {
    * Test functionality to get SCM signed certificate for OM.
    */
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testSecureOmInitSuccess() throws Exception {
     LogCapturer omLogs =
         LogCapturer.captureLogs(OzoneManager.getLogger());
@@ -884,6 +895,7 @@ public final class TestSecureOzoneCluster {
    * Test successful certificate rotation.
    */
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testCertificateRotation() throws Exception {
     OMStorage omStorage = new OMStorage(conf);
     omStorage.setClusterId(clusterId);
@@ -959,6 +971,7 @@ public final class TestSecureOzoneCluster {
    * Test unexpected SCMGetCertResponseProto returned from SCM.
    */
   @Test
+  @Ignore("Run it locally since it will terminate the process.")
   public void testCertificateRotationRecoverableFailure() throws Exception {
     LogCapturer omLogs = LogCapturer.captureLogs(OMCertificateClient.LOG);
     OMStorage omStorage = new OMStorage(conf);
