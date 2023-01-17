@@ -146,18 +146,13 @@ public class GrpcOmTransport implements OmTransport {
       if (secConfig.isSecurityEnabled() && secConfig.isGrpcTlsEnabled()) {
         try {
           SslContextBuilder sslContextBuilder = GrpcSslContexts.forClient();
-          if (secConfig.isSecurityEnabled()) {
-            if (caCerts != null) {
-              sslContextBuilder.trustManager(caCerts);
-            } else {
-              LOG.error("x509Certicates empty");
-            }
-            channelBuilder.useTransportSecurity().
-                sslContext(sslContextBuilder.build());
+          if (caCerts != null) {
+            sslContextBuilder.trustManager(caCerts);
           } else {
-            LOG.error("ozone.security not enabled when TLS specified," +
-                " using plaintext");
+            LOG.error("x509Certificates empty");
           }
+          channelBuilder.useTransportSecurity().
+              sslContext(sslContextBuilder.build());
         } catch (Exception ex) {
           LOG.error("cannot establish TLS for grpc om transport client");
         }
@@ -169,6 +164,7 @@ public class GrpcOmTransport implements OmTransport {
       clients.put(hostaddr,
           OzoneManagerServiceGrpc
               .newBlockingStub(channels.get(hostaddr)));
+      LOG.info("new client created for {} {} {}", hostaddr, hp.getHost(), hp.getPort());
     }
     int maxFailovers = conf.getInt(
         OzoneConfigKeys.OZONE_CLIENT_FAILOVER_MAX_ATTEMPTS_KEY,
