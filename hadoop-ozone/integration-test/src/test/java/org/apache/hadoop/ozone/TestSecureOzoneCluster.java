@@ -1117,7 +1117,7 @@ public final class TestSecureOzoneCluster {
       scm.start();
 
       conf.set(OZONE_METADATA_DIRS, omMetaDirPath.toString());
-      int certLifetime = 60; // second
+      int certLifetime = 30; // second
       conf.set(HDDS_X509_DEFAULT_DURATION,
           Duration.ofSeconds(certLifetime).toString());
       conf.set(HDDS_SECURITY_SSL_KEYSTORE_RELOAD_INTERVAL, "1s");
@@ -1186,8 +1186,8 @@ public final class TestSecureOzoneCluster {
           CertificateCodec.getPEMEncodedString(caCert)));
 
       // Wait for OM certificate to expire and renew
-//      GenericTestUtils.waitFor(() -> omCert.getNotAfter().before(new Date()),
-//          500, certLifetime * 1000);
+      GenericTestUtils.waitFor(() -> omCert.getNotAfter().before(new Date()),
+          500, certLifetime * 1000);
 
       // rerun the command using old client, it should succeed
       serviceInfoEx = client.getObjectStore()
