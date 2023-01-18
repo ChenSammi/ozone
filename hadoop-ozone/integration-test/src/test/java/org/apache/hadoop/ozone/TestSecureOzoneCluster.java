@@ -1166,11 +1166,13 @@ public final class TestSecureOzoneCluster {
       X509Certificate caCert = om.getCertificateClient().getCACertificate();
       X509Certificate rootCaCert =
           om.getCertificateClient().getRootCACertificate();
-      List certList = new ArrayList<>();
+      List<X509Certificate> certList = new ArrayList<>();
       certList.add(caCert);
       certList.add(rootCaCert);
       // set certificates in GrpcOmTransport
       GrpcOmTransport.setCaCerts(certList);
+      certList.forEach(c -> System.out.println("GrpcOmTransport caCert " +
+          c.getSerialNumber().toString()));
 
       GenericTestUtils.waitFor(() -> om.isLeaderReady(), 500, 10000);
       String transportCls = GrpcOmTransportFactory.class.getName();

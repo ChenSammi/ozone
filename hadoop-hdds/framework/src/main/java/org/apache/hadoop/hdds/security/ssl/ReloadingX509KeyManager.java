@@ -134,7 +134,8 @@ public class ReloadingX509KeyManager extends X509ExtendedKeyManager {
       X509ExtendedKeyManager manager = loadKeyManager(caClient);
       if (manager != null) {
         this.keyManagerRef.set(manager);
-        LOG.info("ReloadingX509KeyManager is reloaded");
+        LOG.info("ReloadingX509KeyManager is reloaded. Current certificate {}",
+            currentCertId);
       }
     } catch (Exception ex) {
       // The Consumer.accept interface forces us to convert to unchecked
@@ -148,6 +149,11 @@ public class ReloadingX509KeyManager extends X509ExtendedKeyManager {
     PrivateKey privateKey = caClient.getPrivateKey();
     X509Certificate cert = caClient.getCertificate();
     String certId = cert.getSerialNumber().toString();
+
+    if (currentCertId != null && currentPrivateKey != null) {
+      // skip the reload
+      return null;
+    }
     // Security materials keep the same
     if (currentCertId != null && currentPrivateKey != null &&
         currentCertId.equals(certId) && currentPrivateKey.equals(privateKey)) {
