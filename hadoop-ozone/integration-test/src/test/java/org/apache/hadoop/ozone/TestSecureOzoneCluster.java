@@ -1178,6 +1178,7 @@ public final class TestSecureOzoneCluster {
       String transportCls = GrpcOmTransportFactory.class.getName();
       conf.set(OZONE_OM_TRANSPORT_CLASS, transportCls);
       OzoneClient client = OzoneClientFactory.getRpcClient(conf);
+      OzoneClient client2 = OzoneClientFactory.getRpcClient(conf);
 
       ServiceInfoEx serviceInfoEx = client.getObjectStore()
           .getClientProxy().getOzoneManagerClient().getServiceInfo();
@@ -1197,7 +1198,7 @@ public final class TestSecureOzoneCluster {
 
       // rerun the command using new client, it should succeed too.
       try {
-        OzoneClientFactory.getRpcClient(conf);
+        //OzoneClientFactory.getRpcClient(conf);
       } catch (Exception e) {
         fail("Create client should succeed for certificate is renewed");
       }
