@@ -303,6 +303,7 @@ public class GrpcOmTransport implements OmTransport {
         LOG.error("failed to shutdown OzoneManagerServiceGrpc channel {} : {}",
             entry.getKey(), e);
       }
+      LOG.info("client {} channel is closed", entry.getKey());
     }
   }
 
@@ -342,7 +343,7 @@ public class GrpcOmTransport implements OmTransport {
           OzoneManagerServiceGrpc
               .newBlockingStub(testChannel));
     }
-    LOG.info("{}: started", CLIENT_NAME);
+    LOG.info("{}: started with provided channel", CLIENT_NAME);
   }
 
 }
