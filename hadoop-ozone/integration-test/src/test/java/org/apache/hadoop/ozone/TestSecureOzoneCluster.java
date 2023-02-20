@@ -1323,6 +1323,7 @@ public final class TestSecureOzoneCluster {
       GenericTestUtils.waitFor(() -> om.isLeaderReady(), 500, 10000);
       String transportCls = GrpcOmTransportFactory.class.getName();
       conf.set(OZONE_OM_TRANSPORT_CLASS, transportCls);
+      System.out.println("java.net.preferIPv4Stack =" + System.getProperty("java.net.preferIPv4Stack"));
       OzoneClient client = OzoneClientFactory.getRpcClient(conf);
 
       ServiceInfoEx serviceInfoEx = client.getObjectStore()
@@ -1334,6 +1335,8 @@ public final class TestSecureOzoneCluster {
       GenericTestUtils.waitFor(() -> omCert.getNotAfter().before(new Date()),
           500, certLifetime * 1000);
 
+      System.out.println("java.net.preferIPv4Stack =" + System.getProperty("java.net.preferIPv4Stack"));
+
       // rerun the command using old client, it should succeed
       serviceInfoEx = client.getObjectStore()
           .getClientProxy().getOzoneManagerClient().getServiceInfo();
@@ -1343,6 +1346,7 @@ public final class TestSecureOzoneCluster {
 
       // rerun the command using new client, it should succeed too.
       try {
+        System.out.println("java.net.preferIPv4Stack =" + System.getProperty("java.net.preferIPv4Stack"));
         OzoneClientFactory.getRpcClient(conf);
       } catch (Exception e) {
         System.out.println("OzoneClientFactory.getRpcClient failed for " +
