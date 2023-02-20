@@ -71,7 +71,6 @@ import org.apache.hadoop.hdds.security.x509.certificate.client.CertificateClient
 import org.apache.hadoop.hdds.security.x509.certificate.client.DNCertificateClient;
 import org.apache.hadoop.hdds.security.x509.certificate.authority.DefaultCAServer;
 import org.apache.hadoop.hdds.security.x509.certificate.client.DefaultCertificateClient;
-import org.apache.hadoop.hdds.security.x509.certificate.client.SCMCertificateClient;
 import org.apache.hadoop.hdds.security.x509.certificate.utils.CertificateCodec;
 import org.apache.hadoop.hdds.security.x509.certificate.utils.CertificateSignRequest;
 import org.apache.hadoop.hdds.security.x509.certificate.utils.SelfSignedCertificate;

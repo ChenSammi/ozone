@@ -30,6 +30,8 @@ fi
 export MAVEN_OPTS="-Xmx4096m $MAVEN_OPTS"
 MAVEN_OPTIONS='-B -Dskip.npx -Dskip.installnpx --no-transfer-progress'
 
+export HADOOP_JAAS_DEBUG=true
+
 if [[ "${FAIL_FAST:-}" == "true" ]]; then
   MAVEN_OPTIONS="${MAVEN_OPTIONS} --fail-fast -Dsurefire.skipAfterFailureCount=1"
 else
