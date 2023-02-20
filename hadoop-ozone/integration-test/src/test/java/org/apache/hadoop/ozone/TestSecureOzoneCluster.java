@@ -1310,10 +1310,10 @@ public final class TestSecureOzoneCluster {
       om = OzoneManager.createOm(conf);
       om.start();
 
-      X509Certificate omCert = om.getCertificateClient().getCertificate();
-      X509Certificate caCert = om.getCertificateClient().getCACertificate();
-      X509Certificate rootCaCert =
-          om.getCertificateClient().getRootCACertificate();
+      CertificateClient omCertClient = om.getCertificateClient();
+      X509Certificate omCert = omCertClient.getCertificate();
+      X509Certificate caCert = omCertClient.getCACertificate();
+      X509Certificate rootCaCert = omCertClient.getRootCACertificate();
       List certList = new ArrayList<>();
       certList.add(caCert);
       certList.add(rootCaCert);
@@ -1331,8 +1331,10 @@ public final class TestSecureOzoneCluster {
       Assert.assertTrue(serviceInfoEx.getCaCertificate().equals(
           CertificateCodec.getPEMEncodedString(caCert)));
 
-      // Wait for OM certificate to expire and renew
-      GenericTestUtils.waitFor(() -> omCert.getNotAfter().before(new Date()),
+      // Wait for OM certificate to renewed
+      GenericTestUtils.waitFor(() ->
+              !omCert.getSerialNumber().toString().equals(
+                  omCertClient.getCertificate().getSerialNumber().toString()),
           500, certLifetime * 1000);
 
       System.out.println("java.net.preferIPv4Stack =" + System.getProperty("java.net.preferIPv4Stack"));

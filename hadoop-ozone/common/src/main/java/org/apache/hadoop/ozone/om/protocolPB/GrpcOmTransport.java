@@ -169,13 +169,14 @@ public class GrpcOmTransport implements OmTransport {
       clients.put(hostaddr,
           OzoneManagerServiceGrpc
               .newBlockingStub(channels.get(hostaddr)));
+      LOG.info("{}: channel for {} is created", CLIENT_NAME, hostaddr);
     }
     int maxFailovers = conf.getInt(
         OzoneConfigKeys.OZONE_CLIENT_FAILOVER_MAX_ATTEMPTS_KEY,
         OzoneConfigKeys.OZONE_CLIENT_FAILOVER_MAX_ATTEMPTS_DEFAULT);
 
     retryPolicy = omFailoverProxyProvider.getRetryPolicy(maxFailovers);
-    LOG.info("{}: client started", CLIENT_NAME);
+    LOG.info("{}: client is started", CLIENT_NAME);
   }
 
   @Override
@@ -303,11 +304,13 @@ public class GrpcOmTransport implements OmTransport {
       channel.shutdown();
       try {
         channel.awaitTermination(5, TimeUnit.SECONDS);
+        LOG.info("{}: channel for {} is shutdown", CLIENT_NAME, entry.getKey());
       } catch (Exception e) {
         LOG.error("failed to shutdown OzoneManagerServiceGrpc channel {} : {}",
             entry.getKey(), e);
       }
     }
+    LOG.info("{}: client is stopped", CLIENT_NAME);
   }
 
   @Override

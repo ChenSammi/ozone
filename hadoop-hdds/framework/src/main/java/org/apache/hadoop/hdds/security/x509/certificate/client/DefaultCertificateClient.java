@@ -1407,7 +1407,8 @@ public abstract class DefaultCertificateClient implements CertificateClient {
 
     if (executorService == null) {
       executorService = Executors.newScheduledThreadPool(1,
-          new ThreadFactoryBuilder().setNameFormat("CertificateLifetimeMonitor")
+          new ThreadFactoryBuilder().setNameFormat(
+              getComponentName() + "-CertificateLifetimeMonitor")
               .setDaemon(true).build());
     }
     this.executorService.scheduleAtFixedRate(new CertificateLifetimeMonitor(),
