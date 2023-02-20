@@ -1270,7 +1270,6 @@ public final class TestSecureOzoneCluster {
           Duration.ofSeconds(certLifetime).toString());
       conf.set(HDDS_SECURITY_SSL_KEYSTORE_RELOAD_INTERVAL, "1s");
       conf.set(HDDS_SECURITY_SSL_TRUSTSTORE_RELOAD_INTERVAL, "1s");
-      conf.setBoolean(HddsConfigKeys.HDDS_GRPC_TLS_TEST_CERT, true);
       conf.setInt(OZONE_CLIENT_FAILOVER_MAX_ATTEMPTS_KEY, 2);
 
       // initialize OmStorage, save om Cert and CA Certs to disk
@@ -1302,6 +1301,7 @@ public final class TestSecureOzoneCluster {
 
       conf.setBoolean(HDDS_GRPC_TLS_ENABLED, true);
       conf.setBoolean(OZONE_OM_S3_GPRC_SERVER_ENABLED, true);
+      conf.setBoolean(HddsConfigKeys.HDDS_GRPC_TLS_TEST_CERT, true);
       OzoneManager.setTestSecureOmFlag(true);
       UserGroupInformation ugi = UserGroupInformation.getCurrentUser();
       // In this process, SCM has already login using Kerberos. So pass
