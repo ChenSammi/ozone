@@ -1346,7 +1346,20 @@ public final class TestSecureOzoneCluster {
           CertificateCodec.getPEMEncodedString(caCert)));
       client.close();
 
-      // rerun the command using new client, it should succeed too.
+      // get new client, it should succeed.
+      try {
+        System.out.println("java.net.preferIPv4Stack =" + System.getProperty("java.net.preferIPv4Stack"));
+        OzoneClientFactory.getRpcClient(conf);
+      } catch (Exception e) {
+        System.out.println("OzoneClientFactory.getRpcClient failed for " +
+            e.getMessage());
+        fail("Create client should succeed for certificate is renewed");
+      }
+
+      // Wait for old OM certificate to expire
+      GenericTestUtils.waitFor(() -> omCert.getNotAfter().before(new Date()),
+          500, certLifetime * 1000);
+      // get new client, it should succeed too.
       try {
         System.out.println("java.net.preferIPv4Stack =" + System.getProperty("java.net.preferIPv4Stack"));
         OzoneClientFactory.getRpcClient(conf);

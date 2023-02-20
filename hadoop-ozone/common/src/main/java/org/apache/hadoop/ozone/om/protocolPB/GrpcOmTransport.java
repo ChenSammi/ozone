@@ -303,8 +303,13 @@ public class GrpcOmTransport implements OmTransport {
       ManagedChannel channel = entry.getValue();
       channel.shutdown();
       try {
-        channel.awaitTermination(5, TimeUnit.SECONDS);
-        LOG.info("{}: channel for {} is shutdown", CLIENT_NAME, entry.getKey());
+        if (!channel.awaitTermination(5, TimeUnit.SECONDS)) {
+          LOG.info("{}: failed to shutdown channel for {} gracefully",
+              CLIENT_NAME, entry.getKey());
+        } else {
+          LOG.info("{}: channel for {} is shutdown", CLIENT_NAME,
+              entry.getKey());
+        }
       } catch (Exception e) {
         LOG.error("failed to shutdown OzoneManagerServiceGrpc channel {} : {}",
             entry.getKey(), e);
