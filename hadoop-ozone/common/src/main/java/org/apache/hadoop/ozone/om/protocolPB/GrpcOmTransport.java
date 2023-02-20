@@ -152,6 +152,9 @@ public class GrpcOmTransport implements OmTransport {
             } else {
               LOG.error("x509Certificates empty");
             }
+            if (secConfig.useTestCert()) {
+              channelBuilder.overrideAuthority("localhost");
+            }
             channelBuilder.useTransportSecurity().
                 sslContext(sslContextBuilder.build());
           } else {
