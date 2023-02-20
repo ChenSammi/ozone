@@ -221,8 +221,8 @@ public abstract class DefaultCertificateClient implements CertificateClient {
                     latestRootCaCertSerialId = tmpRootCaCertSerailId;
                   }
                 }
-//                getLogger().info("Added certificate {} from file:{}.", cert,
-//                    file.getAbsolutePath());
+                getLogger().info("Added certificate {} from file:{}.", cert,
+                    file.getAbsolutePath());
               } else {
                 getLogger().error("Error reading certificate from file:{}",
                     file);
