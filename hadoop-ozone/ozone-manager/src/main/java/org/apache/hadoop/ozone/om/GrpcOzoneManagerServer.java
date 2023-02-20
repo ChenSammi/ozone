@@ -117,7 +117,7 @@ public class GrpcOzoneManagerServer {
 
   public void start() throws IOException {
     server.start();
-    LOG.info("{} is started using port {}", getClass().getSimpleName(),
+    LOG.info("Server {} is started using port {}", getClass().getSimpleName(),
         server.getPort());
     port = server.getPort();
   }
@@ -125,11 +125,13 @@ public class GrpcOzoneManagerServer {
   public void stop() {
     try {
       server.shutdown().awaitTermination(10L, TimeUnit.SECONDS);
-      LOG.info("Server {} is shutdown", getClass().getSimpleName());
+      LOG.info("Server {} is shutdown on {}", getClass().getSimpleName(), port);
     } catch (InterruptedException ex) {
-      LOG.warn("{} couldn't be stopped gracefully", getClass().getSimpleName());
+      LOG.warn("{} couldn't be stopped gracefully on {} ",
+          getClass().getSimpleName(), port);
     }
   }
+
   public int getPort() {
     return port;
   }

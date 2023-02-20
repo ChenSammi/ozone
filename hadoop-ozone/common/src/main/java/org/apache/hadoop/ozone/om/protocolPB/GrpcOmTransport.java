@@ -150,7 +150,7 @@ public class GrpcOmTransport implements OmTransport {
             if (caCerts != null) {
               sslContextBuilder.trustManager(caCerts);
             } else {
-              LOG.error("x509Certicates empty");
+              LOG.error("x509Certificates empty");
             }
             channelBuilder.useTransportSecurity().
                 sslContext(sslContextBuilder.build());
@@ -175,7 +175,7 @@ public class GrpcOmTransport implements OmTransport {
         OzoneConfigKeys.OZONE_CLIENT_FAILOVER_MAX_ATTEMPTS_DEFAULT);
 
     retryPolicy = omFailoverProxyProvider.getRetryPolicy(maxFailovers);
-    LOG.info("{}: started", CLIENT_NAME);
+    LOG.info("{}: client started", CLIENT_NAME);
   }
 
   @Override
