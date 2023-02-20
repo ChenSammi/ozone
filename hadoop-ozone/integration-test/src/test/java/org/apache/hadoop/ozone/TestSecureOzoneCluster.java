@@ -669,8 +669,7 @@ public final class TestSecureOzoneCluster {
       omLogs.clearOutput();
 
     } finally {
-      om.stop();
-      om.join();
+      IOUtils.closeQuietly(om);
     }
   }
 
@@ -1176,9 +1175,6 @@ public final class TestSecureOzoneCluster {
       assertTrue(expiryTime > 0);
       assertTrue(new Date(expiryTime).before(omCert.getNotAfter()));
     } finally {
-      if (om != null) {
-        om.stop();
-      }
       IOUtils.closeQuietly(om);
     }
   }
