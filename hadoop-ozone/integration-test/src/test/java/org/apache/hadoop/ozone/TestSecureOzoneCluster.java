@@ -242,7 +242,8 @@ public final class TestSecureOzoneCluster {
       // use the same base ports as MiniOzoneHACluster
       conf.setInt(OZONE_SCM_RATIS_PORT_KEY, getPort(1200, 100));
       conf.setInt(OZONE_SCM_GRPC_PORT_KEY, getPort(1201, 100));
-      conf.set(OZONE_OM_ADDRESS_KEY, "localhost:1202");
+      conf.set(OZONE_OM_ADDRESS_KEY,
+          InetAddress.getLocalHost().getHostName() + ":1202");
       conf.setBoolean(ScmConfigKeys.OZONE_SCM_HA_ENABLE_KEY, false);
 
       DefaultMetricsSystem.setMiniClusterMode(true);
