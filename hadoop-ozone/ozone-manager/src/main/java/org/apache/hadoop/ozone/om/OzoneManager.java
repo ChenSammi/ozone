@@ -572,7 +572,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
             ResultCodes.SCM_VERSION_MISMATCH_ERROR);
       }
     } else {
-      scmInfo = new ScmInfo.Builder().setScmId("testSecureOm").build();
+      scmInfo = new ScmInfo.Builder().setScmId("test").build();
     }
 
     RPC.setProtocolEngine(configuration, OzoneManagerProtocolPB.class,
