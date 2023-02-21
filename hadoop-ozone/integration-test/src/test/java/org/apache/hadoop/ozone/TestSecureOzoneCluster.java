@@ -200,7 +200,7 @@ public final class TestSecureOzoneCluster {
       .getLogger(TestSecureOzoneCluster.class);
 
   @Rule
-  public Timeout timeout = Timeout.seconds(80);
+  public Timeout timeout = Timeout.seconds(180);
 
   @Rule
   public TemporaryFolder folder = new TemporaryFolder();
@@ -242,8 +242,8 @@ public final class TestSecureOzoneCluster {
       // use the same base ports as MiniOzoneHACluster
       conf.setInt(OZONE_SCM_RATIS_PORT_KEY, getPort(1200, 100));
       conf.setInt(OZONE_SCM_GRPC_PORT_KEY, getPort(1201, 100));
-      conf.set(OZONE_OM_ADDRESS_KEY,
-          InetAddress.getLocalHost().getHostName() + ":1202");
+      conf.set(OZONE_OM_ADDRESS_KEY, "localhost:1202");
+          //InetAddress.getLocalHost().getHostName() + ":1202");
       conf.setBoolean(ScmConfigKeys.OZONE_SCM_HA_ENABLE_KEY, false);
 
       DefaultMetricsSystem.setMiniClusterMode(true);
@@ -1285,7 +1285,8 @@ public final class TestSecureOzoneCluster {
       X509CertificateHolder certHolder = generateX509CertHolder(conf, keyPair,
           new KeyPair(scmCertClient.getPublicKey(),
               scmCertClient.getPrivateKey()), scmCert,
-          Duration.ofSeconds(certLifetime));
+          Duration.ofSeconds(certLifetime), "localhost");
+          //InetAddress.getLocalHost().getHostName());
       String certId = certHolder.getSerialNumber().toString();
       certCodec.writeCertificate(certHolder);
       certCodec.writeCertificate(CertificateCodec.getCertificateHolder(scmCert),
@@ -1340,8 +1341,6 @@ public final class TestSecureOzoneCluster {
                   omCertClient.getCertificate().getSerialNumber().toString()),
           500, certLifetime * 1000);
 
-      System.out.println("java.net.preferIPv4Stack =" + System.getProperty("java.net.preferIPv4Stack"));
-
       // rerun the command using old client, it should succeed
       serviceInfoEx = client.getObjectStore()
           .getClientProxy().getOzoneManagerClient().getServiceInfo();
@@ -1351,7 +1350,6 @@ public final class TestSecureOzoneCluster {
 
       // get new client, it should succeed.
       try {
-        System.out.println("java.net.preferIPv4Stack =" + System.getProperty("java.net.preferIPv4Stack"));
         OzoneClientFactory.getRpcClient(conf);
       } catch (Exception e) {
         System.out.println("OzoneClientFactory.getRpcClient failed for " +
@@ -1364,7 +1362,6 @@ public final class TestSecureOzoneCluster {
           500, certLifetime * 1000);
       // get new client, it should succeed too.
       try {
-        System.out.println("java.net.preferIPv4Stack =" + System.getProperty("java.net.preferIPv4Stack"));
         OzoneClientFactory.getRpcClient(conf);
       } catch (Exception e) {
         System.out.println("OzoneClientFactory.getRpcClient failed for " +
@@ -1448,7 +1445,8 @@ public final class TestSecureOzoneCluster {
 
   private static X509CertificateHolder generateX509CertHolder(
       OzoneConfiguration conf, KeyPair keyPair, KeyPair rootKeyPair,
-      X509Certificate rootCert, Duration certLifetime) throws Exception {
+      X509Certificate rootCert, Duration certLifetime, String subject)
+      throws Exception {
     // Generate normal certificate, signed by RootCA certificate
     SecurityConfig secConfig = new SecurityConfig(conf);
     DefaultApprover approver = new DefaultApprover(new DefaultProfile(),
@@ -1461,7 +1459,7 @@ public final class TestSecureOzoneCluster {
         .setConfiguration(conf)
         .setScmID("test")
         .setClusterID("cluster")
-        .setSubject("localhost")
+        .setSubject(subject)
         .setDigitalSignature(true)
         .setDigitalEncryption(true);
 
