@@ -243,7 +243,7 @@ public final class TestSecureOzoneCluster {
       conf.setInt(OZONE_SCM_RATIS_PORT_KEY, getPort(1200, 100));
       conf.setInt(OZONE_SCM_GRPC_PORT_KEY, getPort(1201, 100));
       conf.set(OZONE_OM_ADDRESS_KEY,
-          InetAddress.getLocalHost().getHostName() + ":1202");
+          InetAddress.getLocalHost().getCanonicalHostName() + ":1202");
       conf.setBoolean(ScmConfigKeys.OZONE_SCM_HA_ENABLE_KEY, false);
 
       DefaultMetricsSystem.setMiniClusterMode(true);
@@ -1277,6 +1277,8 @@ public final class TestSecureOzoneCluster {
       OMStorage omStore = new OMStorage(conf);
       omStore.setClusterId(clusterId);
       omStore.setOmId(omId);
+
+      // Prepare the certificates for OM before OM start
       SecurityConfig securityConfig = new SecurityConfig(conf);
       CertificateClient scmCertClient = scm.getScmCertificateClient();
       CertificateCodec certCodec = new CertificateCodec(securityConfig, "om");
@@ -1286,7 +1288,7 @@ public final class TestSecureOzoneCluster {
           new KeyPair(scmCertClient.getPublicKey(),
               scmCertClient.getPrivateKey()), scmCert,
           Duration.ofSeconds(certLifetime),
-          InetAddress.getLocalHost().getHostName(), omId);
+          InetAddress.getLocalHost().getCanonicalHostName(), clusterId);
       String certId = certHolder.getSerialNumber().toString();
       certCodec.writeCertificate(certHolder);
       certCodec.writeCertificate(CertificateCodec.getCertificateHolder(scmCert),
