@@ -133,6 +133,7 @@ public class DefaultCAServer implements CertificateServer {
   private CertificateStore store;
   private Lock lock;
   private static boolean testSecureFlag;
+  private BigInteger rootCertificateId;
 
   /**
    * Create an Instance of DefaultCAServer.
@@ -142,15 +143,23 @@ public class DefaultCAServer implements CertificateServer {
    * @param certificateStore - A store used to persist Certificates.
    */
   public DefaultCAServer(String subject, String clusterID, String scmID,
-                         CertificateStore certificateStore,
+      CertificateStore certificateStore, BigInteger rootCertId,
       PKIProfile pkiProfile, String componentName) {
     this.subject = subject;
     this.clusterID = clusterID;
     this.scmID = scmID;
     this.store = certificateStore;
+    this.rootCertificateId = rootCertId;
     this.profile = pkiProfile;
     this.componentName = componentName;
     lock = new ReentrantLock();
+  }
+
+  public DefaultCAServer(String subject, String clusterID, String scmID,
+      CertificateStore certificateStore, PKIProfile pkiProfile,
+      String componentName) {
+    this(subject, clusterID, scmID, certificateStore, BigInteger.ONE,
+        pkiProfile, componentName);
   }
 
   @Override
@@ -570,7 +579,7 @@ public class DefaultCAServer implements CertificateServer {
         .setClusterID(this.clusterID)
         .setBeginDate(beginDate)
         .setEndDate(endDate)
-        .makeCA()
+        .makeCA(rootCertificateId)
         .setConfiguration(securityConfig)
         .setKey(key);
 
