@@ -382,7 +382,9 @@ public class RootCARotationManager implements SCMService {
             String message = "Terminate SCM, encounter exception(" +
                 e.getMessage() + ") when generating new root CA certificate " +
                 "under " + newCAComponent;
+            cleanupAndStop(message);
             scm.shutDown(message);
+            return;
           }
 
           String newRootCertId = "";

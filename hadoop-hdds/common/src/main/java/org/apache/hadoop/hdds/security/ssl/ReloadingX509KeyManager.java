@@ -252,7 +252,7 @@ public class ReloadingX509KeyManager extends X509ExtendedKeyManager {
         privateKey, EMPTY_PASSWORD,
         newCertList.toArray(new X509Certificate[0]));
 
-    LOG.info("New key manager is loaded with certificate chain");
+    LOG.info("Key manager is loaded with certificate chain");
     for (int i = 0; i < newCertList.size(); i++) {
       LOG.info(newCertList.get(i).toString());
     }

@@ -45,7 +45,7 @@ wait_for_execute_command scm1.org 90 "ozone admin cert info 2"
 # verify scm operations
 execute_robot_test s3g admincli/pipeline.robot
 
-# transfer leader to another SCM
+# transfer leader to scm2.org
 execute_robot_test s3g scmha/scm-leader-transfer.robot
 wait_for_execute_command scm1.org 30 "jps | grep StorageContainerManagerStarter | awk -F' ' '{print $1}' | xargs -I {} jstack {} | grep 'RootCARotationManager-Inactive'"
 
@@ -88,7 +88,7 @@ wait_for_execute_command scm4.org 10 "ozone sh key put /opt/hadoop/NOTICE.txt  /
 wait_for_execute_command scm4.org 10 "ozone sh key get /opt/hadoop/NOTICE.txt.1  /rotation-vol/rotation-bucket/NOTICE.txt"
 
 # check the metrics
-execute_robot_test scm1.org scmha/root-ca-rotation.robot
+execute_robot_test scm2.org scmha/root-ca-rotation.robot
 
 stop_docker_env
 
