@@ -293,6 +293,11 @@ create_containers() {
 }
 
 save_container_logs() {
+  container_id_list=(`docker ps -a | grep -e datanode -e om -e recon -e s3g -e scm -e httpfs -e kms | awk -F' ' '{print $1}' | tr '\n' ' '`)
+  container_name_list=(`docker ps -a | grep -e datanode -e om -e recon -e s3g -e scm -e httpfs -e kms | sed 's/, /,/g' | tr -s ' ' | awk -F' ' '{print $11}' |  tr '\n' ' '`)
+  for i in $(seq 1 ${#container_id_list[@]}); do
+    docker logs "${container_id_list[$i]}" > "$RESULT_DIR/${container_name_list[$i]}.log" 2>&1
+  done
   docker-compose --ansi never logs $@ >> "$RESULT_DIR/docker-$OUTPUT_NAME.log"
 }
 
