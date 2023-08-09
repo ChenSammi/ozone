@@ -942,6 +942,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
       certificateStore.storeValidScmCertificate(
           rootCACert.getSerialNumber(), rootCACert);
     }
+    // Upgrade certificate sequence ID
+    SequenceIdGenerator.upgradeToCertificateSequenceId(scmMetadataStore, true);
   }
 
   public CertificateServer getRootCertificateServer() {
