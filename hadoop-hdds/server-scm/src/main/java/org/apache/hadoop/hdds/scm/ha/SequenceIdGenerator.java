@@ -69,6 +69,10 @@ public class SequenceIdGenerator {
   public static final String LOCAL_ID = "localId";
   public static final String DEL_TXN_ID = "delTxnId";
   public static final String CONTAINER_ID = "containerId";
+
+  // TODO: It can be deleted after several Ozone releases 
+  @Deprecated
+  public static final String ROOT_CERTIFICATE_ID = "rootCertificateId";
   // certificate ID for all services
   public static final String CERTIFICATE_ID = "CertificateId";
 
