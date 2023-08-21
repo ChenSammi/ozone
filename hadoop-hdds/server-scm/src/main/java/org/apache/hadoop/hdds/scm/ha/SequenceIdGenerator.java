@@ -70,7 +70,7 @@ public class SequenceIdGenerator {
   public static final String DEL_TXN_ID = "delTxnId";
   public static final String CONTAINER_ID = "containerId";
 
-  // TODO: It can be deleted after several Ozone releases 
+  // TODO: It can be deleted after several Ozone releases
   @Deprecated
   public static final String ROOT_CERTIFICATE_ID = "rootCertificateId";
   // certificate ID for all services
