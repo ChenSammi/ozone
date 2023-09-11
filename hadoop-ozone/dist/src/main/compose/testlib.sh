@@ -553,6 +553,6 @@ wait_for_root_certificate(){
       echo "$count root certificates are not found yet"
       sleep 1
   done
-  echo "Timed out waiting on $count root certificates"
+  echo "Timed out waiting on $count root certificates. Current timestamp " $(date +"%T")
   return 1
 }

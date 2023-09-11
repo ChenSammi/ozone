@@ -49,6 +49,7 @@ wait_for_execute_command datanode 30 $check_root_ca_file_cmd
 # certificate and will not refetch the CA certs as that will be implemented in
 # HDDS-8958.
 execute_robot_test om kinit.robot
+check_root_ca_file_cmd="ozone admin cert list --role=scm | grep -v 'scm-sub' | grep 'scm'  | cut -d ' ' -f 1 | sort | tail -n 1 | xargs -I {} echo /data/metadata/om/certs/ROOTCA-{}.crt | xargs find"
 wait_for_execute_command om 30 $check_root_ca_file_cmd
 execute_robot_test scm -v PREFIX:"rootca" certrotation/root-ca-rotation-client-checks.robot
 
