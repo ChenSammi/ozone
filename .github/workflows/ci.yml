@@ -318,7 +318,7 @@ jobs:
           name: kubernetes
           path: target/kubernetes
         continue-on-error: true
-  unit:
+  integration:
     needs:
       - build-info
     runs-on: ubuntu-20.04
