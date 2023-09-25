@@ -456,11 +456,12 @@ public class SCMSecurityProtocolClientSideTranslatorPB implements
 
   @Override
   public String getNextCertificateId() throws IOException {
-    SCMGetNextCertificateIdRequestProto protoIns =
-        SCMGetNextCertificateIdRequestProto.getDefaultInstance();
-    return submitRequest(Type.GetNextCertificateId,
-        builder -> builder.setGetNextCertificateIdRequestProto(protoIns))
-        .getGetNextCertificateIdResponseProto()
-        .getCertSerialId();
+//    SCMGetNextCertificateIdRequestProto protoIns =
+//        SCMGetNextCertificateIdRequestProto.getDefaultInstance();
+//    return submitRequest(Type.GetNextCertificateId,
+//        builder -> builder.setGetNextCertificateIdRequestProto(protoIns))
+//        .getGetNextCertificateIdResponseProto()
+//        .getCertSerialId();
+    return "";
   }
 }

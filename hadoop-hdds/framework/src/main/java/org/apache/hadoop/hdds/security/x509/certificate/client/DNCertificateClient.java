@@ -55,8 +55,7 @@ public class DNCertificateClient extends DefaultCertificateClient {
       DatanodeDetails datanodeDetails,
       String certSerialId,
       Consumer<String> saveCertId,
-      Runnable shutdown
-  ) {
+      Runnable shutdown) {
     super(securityConfig, scmSecurityClient, LOG, certSerialId, COMPONENT_NAME,
         saveCertId, shutdown);
     this.dn = datanodeDetails;

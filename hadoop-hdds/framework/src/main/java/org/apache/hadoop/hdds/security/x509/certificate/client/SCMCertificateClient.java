@@ -50,6 +50,7 @@ import static org.apache.hadoop.hdds.security.x509.certificate.client.Certificat
 import static org.apache.hadoop.hdds.security.x509.certificate.client.CertificateClient.InitResponse.SUCCESS;
 import static org.apache.hadoop.hdds.security.x509.certificate.utils.CertificateSignRequest.getEncodedString;
 import static org.apache.hadoop.hdds.security.x509.exception.CertificateException.ErrorCode.CSR_ERROR;
+import static org.apache.hadoop.ozone.OzoneConsts.SCM_SUB_CA;
 import static org.apache.hadoop.ozone.OzoneConsts.SCM_SUB_CA_PREFIX;
 
 /**
@@ -174,8 +175,8 @@ public class SCMCertificateClient extends DefaultCertificateClient {
   public CertificateSignRequest.Builder getCSRBuilder(String certSerialId)
       throws CertificateException {
     newCertSerialId.set(certSerialId);
-    String subject = String.format(SCM_SUB_CA_PREFIX, certSerialId)
-        + scmHostname;
+    String subject = SCM_SUB_CA_PREFIX + scmHostname;
+        // String.format(SCM_SUB_CA_PREFIX, certSerialId)
 
     LOG.info("Creating csr for SCM->hostName:{},scmId:{},clusterId:{}," +
         "subject:{}", scmHostname, scmId, cId, subject);

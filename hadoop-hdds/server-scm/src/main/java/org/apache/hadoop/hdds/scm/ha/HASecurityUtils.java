@@ -68,8 +68,10 @@ import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_INFO_WAIT_DURAT
 import static org.apache.hadoop.hdds.security.x509.certificate.authority.CertificateApprover.ApprovalType.KERBEROS_TRUSTED;
 import static org.apache.hadoop.hdds.security.x509.certificate.utils.CertificateSignRequest.getEncodedString;
 import static org.apache.hadoop.hdds.utils.HddsServerUtil.getScmSecurityClientWithMaxRetry;
+import static org.apache.hadoop.ozone.OzoneConsts.SCM_ROOT_CA;
 import static org.apache.hadoop.ozone.OzoneConsts.SCM_ROOT_CA_COMPONENT_NAME;
 import static org.apache.hadoop.ozone.OzoneConsts.SCM_ROOT_CA_PREFIX;
+import static org.apache.hadoop.ozone.OzoneConsts.SCM_SUB_CA;
 import static org.apache.hadoop.ozone.OzoneConsts.SCM_SUB_CA_PREFIX;
 import static org.apache.hadoop.security.UserGroupInformation.getCurrentUser;
 
@@ -259,7 +261,8 @@ public final class HASecurityUtils {
       SecurityConfig config, CertificateStore scmCertStore,
       SCMStorageConfig scmStorageConfig, BigInteger rootCertId,
       PKIProfile pkiProfile, String component) throws IOException {
-    String subject = String.format(SCM_ROOT_CA_PREFIX, rootCertId) +
+    String subject = SCM_ROOT_CA_PREFIX +
+        // String.format(SCM_ROOT_CA_PREFIX, rootCertId) +
         InetAddress.getLocalHost().getHostName();
 
     DefaultCAServer rootCAServer = new DefaultCAServer(subject,
@@ -301,8 +304,8 @@ public final class HASecurityUtils {
     CertificateSignRequest.Builder builder = client.getCSRBuilder(certSerialId);
 
     // Get host name.
-    String subject = String.format(SCM_SUB_CA_PREFIX, certSerialId)
-        + scmHostname;
+    String subject = SCM_SUB_CA_PREFIX + scmHostname;
+    // String.format(SCM_SUB_CA_PREFIX, certSerialId)
 
     builder.setConfiguration(config)
         .setScmID(scmStorageConfig.getScmId())
