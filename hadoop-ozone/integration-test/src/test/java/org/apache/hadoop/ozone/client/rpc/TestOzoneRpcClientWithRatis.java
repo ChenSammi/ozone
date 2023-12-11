@@ -27,13 +27,16 @@ import java.nio.channels.FileChannel;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.hadoop.hdds.client.DefaultReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationType;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
+import org.apache.hadoop.hdds.utils.FaultInjector;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.client.BucketArgs;
 import org.apache.hadoop.ozone.client.ObjectStore;
@@ -51,8 +54,9 @@ import org.apache.hadoop.ozone.om.OMConfigKeys;
 import org.apache.hadoop.ozone.om.helpers.OmKeyArgs;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartInfo;
 import org.apache.hadoop.ozone.om.ratis.OzoneManagerStateMachine;
-import org.apache.hadoop.ozone.protocolPB.OzoneManagerRequestHandler;
+import org.apache.hadoop.ozone.om.ratis.metrics.OzoneManagerStateMachineMetrics;
 import org.apache.ozone.test.GenericTestUtils;
+import org.assertj.core.api.Fail;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
@@ -64,6 +68,7 @@ import static org.apache.hadoop.hdds.client.ReplicationFactor.ONE;
 import static org.apache.hadoop.hdds.client.ReplicationFactor.THREE;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This class is to test all the public facing APIs of Ozone Client with an
@@ -290,7 +295,8 @@ public class TestOzoneRpcClientWithRatis extends TestOzoneRpcClientAbstract {
   }
 
   @Test
-  public void testParallelDeleteBucketAndCreateKey() throws IOException {
+  public void testParallelDeleteBucketAndCreateKey() throws IOException,
+      InterruptedException, TimeoutException {
     String volumeName = UUID.randomUUID().toString();
     String bucketName = UUID.randomUUID().toString();
 
@@ -302,6 +308,9 @@ public class TestOzoneRpcClientWithRatis extends TestOzoneRpcClientAbstract {
 
     GenericTestUtils.LogCapturer omSMLog = GenericTestUtils.LogCapturer
         .captureLogs(OzoneManagerStateMachine.LOG);
+    OzoneManagerStateMachine omSM = getCluster().getOzoneManager()
+        .getOmRatisServer().getOmStateMachine();
+    OzoneManagerStateMachineMetrics metrics = omSM.getMetrics();
 
     Thread thread1 = new Thread(() -> {
       try {
@@ -313,16 +322,23 @@ public class TestOzoneRpcClientWithRatis extends TestOzoneRpcClientAbstract {
 
     Thread thread2 = new Thread(() -> {
       try {
-        ozClient.getProxy().createKey(volumeName, bucketName, keyName,
+        getClient().getProxy().createKey(volumeName, bucketName, keyName,
             0, ReplicationType.RATIS, ONE, new HashMap<>());
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
     });
 
-    OzoneManagerRequestHandler.handle_write_sleep = 5000;
+    OMRequestHandlerPauseInjector injector =
+        new OMRequestHandlerPauseInjector();
+    omSM.getHandler().setInjector(injector);
     thread1.start();
     thread2.start();
+    GenericTestUtils.waitFor(() -> metrics.getApplyTransactionMapSize() > 0,
+        100, 5000);
+    Thread.sleep(2000);
+    injector.resume();
+
     try {
       thread1.join();
       thread2.join();
@@ -330,7 +346,7 @@ public class TestOzoneRpcClientWithRatis extends TestOzoneRpcClientAbstract {
       throw new RuntimeException(ex);
     }
 
-    OzoneManagerRequestHandler.handle_write_sleep = 0;
+    omSM.getHandler().setInjector(null);
     // Generate more write requests to OM
     String newBucketName = UUID.randomUUID().toString();
     volume.createBucket(newBucketName);
@@ -345,5 +361,47 @@ public class TestOzoneRpcClientWithRatis extends TestOzoneRpcClientAbstract {
         omSMLog.getOutput().contains("Failed to write, Exception occurred"));
     Assert.assertTrue(
         omSMLog.getOutput().contains("applyTransactionMap size 0"));
+  }
+
+  private static class OMRequestHandlerPauseInjector extends FaultInjector {
+    private CountDownLatch ready;
+    private CountDownLatch wait;
+
+    OMRequestHandlerPauseInjector() {
+      init();
+    }
+
+    @Override
+    public void init() {
+      this.ready = new CountDownLatch(1);
+      this.wait = new CountDownLatch(1);
+    }
+
+    @Override
+    public void pause() throws IOException {
+      ready.countDown();
+      try {
+        wait.await();
+      } catch (InterruptedException e) {
+        throw new IOException(e);
+      }
+    }
+
+    @Override
+    public void resume() throws IOException {
+      // Make sure injector pauses before resuming.
+      try {
+        ready.await();
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+        assertTrue(Fail.fail("resume interrupted"));
+      }
+      wait.countDown();
+    }
+
+    @Override
+    public void reset() throws IOException {
+      init();
+    }
   }
 }
