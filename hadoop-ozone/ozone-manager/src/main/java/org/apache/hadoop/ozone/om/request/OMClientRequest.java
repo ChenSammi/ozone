@@ -468,10 +468,10 @@ public abstract class OMClientRequest implements RequestAuditor {
   protected void addResponseToDoubleBuffer(long trxIndex,
       OMClientResponse omClientResponse,
       OzoneManagerDoubleBufferHelper omDoubleBufferHelper) {
-    Preconditions.checkNotNull(omClientResponse,
-        "OMClientResponse cannot be null");
-    omClientResponse.setFlushFuture(
-        omDoubleBufferHelper.add(omClientResponse, trxIndex));
+    if (omClientResponse != null) {
+      omClientResponse.setFlushFuture(
+          omDoubleBufferHelper.add(omClientResponse, trxIndex));
+    }
   }
 
   private String exceptionErrorMessage(Exception ex) {
