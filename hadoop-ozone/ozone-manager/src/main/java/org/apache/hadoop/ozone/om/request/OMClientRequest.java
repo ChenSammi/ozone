@@ -80,6 +80,8 @@ public abstract class OMClientRequest implements RequestAuditor {
   private InetAddress inetAddress;
   private final ThreadLocal<OMLockDetails> omLockDetails =
       ThreadLocal.withInitial(OMLockDetails::new);
+  private final ThreadLocal<Long> txAddToDoubleBuffer =
+      ThreadLocal.withInitial(() -> -1L);
 
   /**
    * Stores the result of request execution in
@@ -471,6 +473,7 @@ public abstract class OMClientRequest implements RequestAuditor {
     if (omClientResponse != null) {
       omClientResponse.setFlushFuture(
           omDoubleBufferHelper.add(omClientResponse, trxIndex));
+      txAddToDoubleBuffer.set(trxIndex);
     }
   }
 
@@ -591,5 +594,9 @@ public abstract class OMClientRequest implements RequestAuditor {
 
   public void mergeOmLockDetails(OMLockDetails details) {
     omLockDetails.get().merge(details);
+  }
+
+  public Long getTxAddToDoubleBuffer() {
+    return txAddToDoubleBuffer.get();
   }
 }

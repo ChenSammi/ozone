@@ -25,6 +25,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.ServiceException;
 import org.apache.commons.lang3.StringUtils;
@@ -396,8 +397,19 @@ public class OzoneManagerRequestHandler implements RequestHandler {
         OzoneManagerRatisUtils.createClientRequest(omRequest, impl);
     return captureLatencyNs(
         impl.getPerfMetrics().getValidateAndUpdateCacneLatencyNs(),
-        () -> omClientRequest.validateAndUpdateCache(getOzoneManager(),
-            transactionLogIndex, ozoneManagerDoubleBuffer::add));
+        () -> {
+          OMClientResponse omClientResponse =
+              omClientRequest.validateAndUpdateCache(getOzoneManager(),
+              transactionLogIndex, ozoneManagerDoubleBuffer::add);
+          Preconditions.checkState(
+              omClientRequest.getTxAddToDoubleBuffer().longValue()
+                  == transactionLogIndex,
+              "OMClientResponse for request " +
+                  omRequest + " is not added to DoubleBuffer. Expected: " +
+                  transactionLogIndex + ", fetched: " +
+                  omClientRequest.getTxAddToDoubleBuffer().longValue());
+          return omClientResponse;
+        });
   }
 
   @Override

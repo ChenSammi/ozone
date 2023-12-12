@@ -90,7 +90,11 @@ public class OMVolumeSetOwnerRequest extends OMVolumeRequest {
     if (!setVolumePropertyRequest.hasOwnerName()) {
       omResponse.setStatus(OzoneManagerProtocolProtos.Status.INVALID_REQUEST)
           .setSuccess(false);
-      return new OMVolumeSetOwnerResponse(omResponse.build());
+      OMVolumeSetOwnerResponse response =
+          new OMVolumeSetOwnerResponse(omResponse.build());
+      addResponseToDoubleBuffer(transactionLogIndex, response,
+          ozoneManagerDoubleBufferHelper);
+      return response;
     }
 
     OMMetrics omMetrics = ozoneManager.getMetrics();

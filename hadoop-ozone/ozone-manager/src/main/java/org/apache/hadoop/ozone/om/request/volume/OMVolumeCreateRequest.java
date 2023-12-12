@@ -176,11 +176,8 @@ public class OMVolumeCreateRequest extends OMVolumeRequest {
       omClientResponse = new OMVolumeCreateResponse(
           createErrorOMResponse(omResponse, exception));
     } finally {
-      if (omClientResponse != null) {
-        omClientResponse.setFlushFuture(
-            ozoneManagerDoubleBufferHelper.add(omClientResponse,
-                transactionLogIndex));
-      }
+      addResponseToDoubleBuffer(transactionLogIndex, omClientResponse,
+          ozoneManagerDoubleBufferHelper);
       if (acquiredUserLock) {
         mergeOmLockDetails(
             omMetadataManager.getLock().releaseWriteLock(USER_LOCK, owner));
