@@ -41,11 +41,11 @@ public final class OzoneManagerStateMachineMetrics implements MetricsSource {
   private MetricsRegistry registry;
   private static OzoneManagerStateMachineMetrics instance;
 
-  // @Metric(about = "Number of apply transactions in applyTransactionMap.")
-  @Metric private MutableCounterLong applyTransactionMapSize;
+  @Metric(about = "Number of apply transactions in applyTransactionMap.")
+  private MutableCounterLong applyTransactionMapSize;
 
-  // @Metric(about = "Number of ratis transactions in ratisTransactionMap.")
-  @Metric private MutableCounterLong ratisTransactionMapSize;
+  @Metric(about = "Number of ratis transactions in ratisTransactionMap.")
+  private MutableCounterLong ratisTransactionMapSize;
 
   private OzoneManagerStateMachineMetrics() {
     registry = new MetricsRegistry(SOURCE_NAME);
