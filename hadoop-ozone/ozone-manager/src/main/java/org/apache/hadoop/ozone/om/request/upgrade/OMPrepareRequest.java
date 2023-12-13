@@ -95,7 +95,8 @@ public class OMPrepareRequest extends OMClientRequest {
       // Add response to double buffer before clearing logs.
       // This guarantees the log index of this request will be the same as
       // the snapshot index in the prepared state.
-      ozoneManagerDoubleBufferHelper.add(response, transactionLogIndex);
+      addResponseToDoubleBuffer(transactionLogIndex, response,
+          ozoneManagerDoubleBufferHelper);
 
       OzoneManagerRatisServer omRatisServer = ozoneManager.getOmRatisServer();
       RaftServer.Division division =
