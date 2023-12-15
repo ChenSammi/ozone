@@ -399,15 +399,13 @@ public class OzoneManagerRequestHandler implements RequestHandler {
         impl.getPerfMetrics().getValidateAndUpdateCacneLatencyNs(),
         () -> {
           OMClientResponse omClientResponse =
-              omClientRequest.validateAndUpdateCache(getOzoneManager(),
-              transactionLogIndex, ozoneManagerDoubleBuffer::add);
-          Preconditions.checkState(
-              omClientRequest.getTxAddToDoubleBuffer().longValue()
-                  == transactionLogIndex,
-              "OMClientResponse for request " +
-                  omRequest + " is not added to DoubleBuffer. Expected: " +
-                  transactionLogIndex + ", fetched: " +
-                  omClientRequest.getTxAddToDoubleBuffer().longValue());
+              omClientRequest.validateAndUpdateCache(getOzoneManager(), transactionLogIndex);
+          Preconditions.checkNotNull(omClientResponse,
+              "omClientResponse returned by validateAndUpdateCache cannot be null");
+          if (omRequest.getCmdType() != Type.Prepare) {
+            omClientResponse.setFlushFuture(
+                ozoneManagerDoubleBuffer.add(omClientResponse, transactionLogIndex));
+          }
           return omClientResponse;
         });
   }
