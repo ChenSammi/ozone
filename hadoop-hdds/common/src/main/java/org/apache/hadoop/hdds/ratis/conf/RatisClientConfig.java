@@ -47,10 +47,10 @@ public class RatisClientConfig {
     @Config(key = "async.outstanding-requests.max",
         defaultValue = "32",
         type = ConfigType.INT,
-        tags = { OZONE, CLIENT, PERFORMANCE },
+        tags = {OZONE, CLIENT, PERFORMANCE},
         description =
-        "Controls the maximum number of outstanding async requests that can"
-            + " be handled by the Standalone as well as Ratis client.")
+            "Controls the maximum number of outstanding async requests that can"
+                + " be handled by the Standalone as well as Ratis client.")
     private int maxOutstandingRequests = 32;
 
     public int getMaxOutstandingRequests() {
@@ -64,11 +64,11 @@ public class RatisClientConfig {
     @Config(key = "rpc.request.timeout",
         defaultValue = "60s",
         type = ConfigType.TIME,
-        tags = { OZONE, CLIENT, PERFORMANCE },
+        tags = {OZONE, CLIENT, PERFORMANCE},
         description =
-        "The timeout duration for ratis client request (except "
-            + "for watch request). It should be set greater than leader "
-            + "election timeout in Ratis.")
+            "The timeout duration for ratis client request (except "
+                + "for watch request). It should be set greater than leader "
+                + "election timeout in Ratis.")
     private Duration rpcRequestTimeout = Duration.ofSeconds(60);
 
     public Duration getRpcRequestTimeout() {
@@ -82,11 +82,11 @@ public class RatisClientConfig {
     @Config(key = "rpc.watch.request.timeout",
         defaultValue = "180s",
         type = ConfigType.TIME,
-        tags = { OZONE, CLIENT, PERFORMANCE },
+        tags = {OZONE, CLIENT, PERFORMANCE},
         description =
-        "The timeout duration for ratis client watch request. "
-            + "Timeout for the watch API in Ratis client to acknowledge a "
-            + "particular request getting replayed to all servers.")
+            "The timeout duration for ratis client watch request. "
+                + "Timeout for the watch API in Ratis client to acknowledge a "
+                + "particular request getting replayed to all servers.")
     private Duration rpcWatchRequestTimeout = Duration.ofSeconds(180);
 
     public Duration getRpcWatchRequestTimeout() {
@@ -96,6 +96,17 @@ public class RatisClientConfig {
     public void setRpcWatchRequestTimeout(Duration duration) {
       rpcWatchRequestTimeout = duration;
     }
+  }
+
+  @Config(key = "client.request.watch.type",
+      defaultValue = "MAJORITY_COMMITTED",
+      type = ConfigType.STRING,
+      tags = {OZONE, CLIENT, PERFORMANCE},
+      description = "The RATIS watch commit type, ALL_COMMITTED or MAJORITY_COMMITTED.")
+  private String watchType;
+
+  public String getWatchType() {
+    return watchType;
   }
 
   @Config(key = "client.request.write.timeout",
