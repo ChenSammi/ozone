@@ -153,7 +153,7 @@ public final class XceiverClientRatis extends XceiverClientSpi {
 
   public long updateCommitInfosMap(
       Collection<RaftProtos.CommitInfoProto> commitInfoProtos) {
-    return updateCommitInfosMap(commitInfoProtos, ReplicationLevel.ALL_COMMITTED);
+    return updateCommitInfosMap(commitInfoProtos, watchType);
   }
 
   public long updateCommitInfosMap(

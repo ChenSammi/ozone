@@ -99,7 +99,7 @@ public class RatisClientConfig {
   }
 
   @Config(key = "client.request.watch.type",
-      defaultValue = "ALL_COMMITTED",
+      defaultValue = "MAJORITY_COMMITTED",
       type = ConfigType.STRING,
       tags = { OZONE, CLIENT, PERFORMANCE },
       description = "The RATIS watch commit type, ALL_COMMITTED or MAJORITY_COMMITTED.")
