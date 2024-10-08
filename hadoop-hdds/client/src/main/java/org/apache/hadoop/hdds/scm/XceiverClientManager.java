@@ -188,8 +188,7 @@ public class XceiverClientManager extends XceiverClientCreator {
       client.decrementReference();
       if (invalidateClient) {
         Pipeline pipeline = client.getPipeline();
-        // allowShortCircuit = false, which means XceiverClientShortCircuit will never be released currently.
-        String key = getPipelineCacheKey(pipeline, topologyAware, false);
+        String key = getPipelineCacheKey(pipeline, topologyAware, client instanceof XceiverClientShortCircuit);
         XceiverClientSpi cachedClient = clientCache.getIfPresent(key);
         if (cachedClient == client) {
           clientCache.invalidate(key);

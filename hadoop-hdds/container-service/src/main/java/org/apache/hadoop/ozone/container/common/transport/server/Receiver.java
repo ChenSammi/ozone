@@ -31,6 +31,8 @@ import org.apache.hadoop.ozone.container.common.helpers.ContainerMetrics;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
 import com.google.common.base.Preconditions;
+import org.apache.hadoop.thirdparty.protobuf.CodedInputStream;
+import org.apache.hadoop.util.LimitInputStream;
 import org.slf4j.Logger;
 
 import java.io.BufferedInputStream;
@@ -52,6 +54,7 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerC
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerCommandResponseProto;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.hadoop.hdds.scm.OzoneClientConfig.DATA_TRANSFER_MAGIC_CODE;
 import static org.apache.hadoop.hdds.scm.OzoneClientConfig.DATA_TRANSFER_VERSION;
 
 /**
@@ -125,7 +128,7 @@ class Receiver implements XceiverClientProtocol, Runnable {
           throw e;
         }
 
-        readExecutors.submit(new processRequestTask(requestProto, output, opsHandled));
+        readExecutors.submit(new processRequestTask(requestProto, opsHandled));
         ++opsReceived;
         // reset request variable
         requestProto = null;
@@ -163,16 +166,20 @@ class Receiver implements XceiverClientProtocol, Runnable {
     // second short is ContainerProtos#Type
     final short typeNumber = in.readShort();
     ContainerProtos.Type type = ContainerProtos.Type.forNumber(typeNumber);
-    // first 4 bytes indicates the serialized ContainerCommandRequestProto size
-    final int size = in.readInt();
-    // LOG.info("received {} {} bytes", type, size);
-    byte[] bytes = new byte[size];
-    int totalReadSize = in.read(bytes);
-    while (totalReadSize < size) {
-      int readSize = in.read(bytes, totalReadSize, size - totalReadSize);
-      totalReadSize += readSize;
-    }
-    ContainerCommandRequestProto requestProto = ContainerCommandRequestProto.parseFrom(bytes);
+
+    ContainerCommandRequestProto requestProto =
+        ContainerCommandRequestProto.parseFrom(vintPrefixed(in));
+
+//    // first 4 bytes indicates the serialized ContainerCommandRequestProto size
+//    final int size = in.readInt();
+//    // LOG.info("received {} {} bytes", type, size);
+//    byte[] bytes = new byte[size];
+//    int totalReadSize = in.read(bytes);
+//    while (totalReadSize < size) {
+//      int readSize = in.read(bytes, totalReadSize, size - totalReadSize);
+//      totalReadSize += readSize;
+//    }
+//    ContainerCommandRequestProto requestProto = ContainerCommandRequestProto.parseFrom(bytes);
     if (requestProto.getCmdType() != type) {
       throw new IOException("Type mismatch, " + type + " in header while " + requestProto. getCmdType() +
           " in request body");
@@ -180,16 +187,27 @@ class Receiver implements XceiverClientProtocol, Runnable {
     return requestProto;
   }
 
+  public static InputStream vintPrefixed(final InputStream input)
+      throws IOException {
+    final int firstByte = input.read();
+    if (firstByte == -1) {
+      throw new EOFException(
+          "Unexpected EOF while trying to read response from server");
+    }
+
+    int size = CodedInputStream.readRawVarint32(firstByte, input);
+    assert size >= 0;
+    return new LimitInputStream(input, size);
+  }
+
   /** Process the request **/
   public class processRequestTask implements Runnable {
     private final ContainerCommandRequestProto request;
-    private final DataOutputStream out;
     private final long createTime;
     private final AtomicLong counter;
 
-    public processRequestTask(ContainerCommandRequestProto request, DataOutputStream out, AtomicLong counter) {
+    public processRequestTask(ContainerCommandRequestProto request, AtomicLong counter) {
       this.request = request;
-      this.out = out;
       this.counter = counter;
       this.createTime = System.nanoTime();
     }
@@ -225,7 +243,7 @@ class Receiver implements XceiverClientProtocol, Runnable {
 
   void sendResponse(ResponseEntry entry) {
     byte buf[] = new byte[1];
-    buf[0] = (byte) 99;
+    buf[0] = DATA_TRANSFER_MAGIC_CODE;
     ContainerCommandResponseProto responseProto = entry.getResponse();
     ContainerProtos.Type type = responseProto.getCmdType();
     synchronized (output) {
@@ -235,19 +253,22 @@ class Receiver implements XceiverClientProtocol, Runnable {
         byte[] bytes = responseProto.toByteArray();
         output.writeShort(DATA_TRANSFER_VERSION);
         output.writeShort(type.getNumber());
-        output.writeInt(bytes.length);
         // send response proto
-        output.write(bytes);
+        // output.writeInt(bytes.length);
+        // output.write(bytes);
+        responseProto.writeDelimitedTo(output);
         long startTime = System.nanoTime();
         output.flush();
+        LOG.info("write {} bytes of response {}", bytes.length, responseProto);
         cost = System.nanoTime() - startTime;
         if (fis != null) {
           // send FileDescriptor
           FileDescriptor[] fds = new FileDescriptor[1];
           fds[0] = fis.getFD();
           DomainSocket sock = peer.getDomainSocket();
-          // this API requires send at least one byte for buf.
+          // this API requires send at least one byte buf.
           sock.sendFileDescriptors(fds, buf, 0, buf.length);
+          LOG.info("write {} bytes", fis.getFD());
         }
       } catch (Throwable e) {
         LOG.error("Failed to send response {}", responseProto.getCmdType(), e);

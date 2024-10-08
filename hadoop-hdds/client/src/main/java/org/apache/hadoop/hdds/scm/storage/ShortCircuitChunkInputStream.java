@@ -130,11 +130,6 @@ public class ShortCircuitChunkInputStream extends ChunkInputStream
    */
   @Override
   protected synchronized void acquireClient() throws IOException {
-    if (xceiverClientShortCircuit != null && !xceiverClientShortCircuit.isClosed()) {
-      xceiverClient = xceiverClientShortCircuit;
-    } else {
-      throw new IOException(DomainSocketFactory.FEATURE + " client for " +
-          xceiverClientShortCircuit.getDn().getHostName() + " is already closed");
-    }
+   // do nothing, read data doesn't need short-circuit client
   }
 }

@@ -145,7 +145,7 @@ public class DomainSocketFactory implements Closeable {
       } else {
         pathInfo = PathInfo.VALID;
         isEnabled = true;
-        timer = new Timer(DomainSocketFactory.class.getSimpleName());
+        timer = new Timer(DomainSocketFactory.class.getSimpleName() + "-Timer");
         LOG.info(FEATURE + " is enabled within {} ns.", System.nanoTime() - startTime);
       }
     }
@@ -210,7 +210,7 @@ public class DomainSocketFactory implements Closeable {
       sock.setAttribute(DomainSocket.RECEIVE_TIMEOUT, readTimeoutMs);
       sock.setAttribute(DomainSocket.SEND_TIMEOUT, writeTimeoutMs);
       success = true;
-      LOG.info("{} is created within {} ns", sock, System.nanoTime() - startTime);
+      LOG.info("{} is created 'within' {} ns", sock, System.nanoTime() - startTime);
     } catch (IOException e) {
       LOG.error("Failed to create DomainSocket", e);
       throw e;

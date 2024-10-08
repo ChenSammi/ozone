@@ -406,9 +406,14 @@ public class BlockInputStream extends BlockExtendedInputStream {
     if (xceiverClientFactory != null && xceiverClientFactory.isShortCircuitEnabled() && !fallbackToGrpc.get()
         && xceiverClientShortCircuit == null) {
       try {
-         xceiverClientShortCircuit =
-             (XceiverClientShortCircuit) xceiverClientFactory.acquireClientForReadData(pipeline, true);
-         return;
+        XceiverClientSpi newClient = xceiverClientFactory.acquireClientForReadData(pipeline, true);
+        if (newClient instanceof XceiverClientShortCircuit) {
+          xceiverClientShortCircuit = (XceiverClientShortCircuit) newClient;
+        } else {
+          xceiverClientGrpc = newClient;
+          fallbackToGrpc.set(true);
+        }
+        return;
       } catch (Exception e) {
         LOG.warn("Failed to acquire {} client for pipeline {}, block {}. Fallback to Grpc client.",
             DomainSocketFactory.FEATURE, pipeline, blockID, e);
@@ -628,6 +633,10 @@ public class BlockInputStream extends BlockExtendedInputStream {
     if (xceiverClientFactory != null && xceiverClientGrpc != null) {
       xceiverClientFactory.releaseClientForReadData(xceiverClientGrpc, false);
       xceiverClientGrpc = null;
+    }
+    if (xceiverClientFactory != null && xceiverClientShortCircuit != null) {
+      xceiverClientFactory.releaseClientForReadData(xceiverClientShortCircuit, false);
+      xceiverClientShortCircuit = null;
     }
   }
 

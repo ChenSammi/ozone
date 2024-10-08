@@ -100,6 +100,10 @@ public class TestXceiverServerDomainSocket {
       serverDomainSocket.setContainerDispatcher(
           createDispatcherAndPrepareData(conf, path, serverDomainSocket, metrics));
       serverDomainSocket.start();
+
+      XceiverServerDomainSocket serverDomainSocket2 = new XceiverServerDomainSocket(
+          MockDatanodeDetails.randomDatanodeDetails(), conf, null, readExecutors, metrics, domainSocketFactory);
+      serverDomainSocket2.start();
       Thread.sleep(600 * 1000);
     } catch (IOException e) {
       throw new RuntimeException(e);

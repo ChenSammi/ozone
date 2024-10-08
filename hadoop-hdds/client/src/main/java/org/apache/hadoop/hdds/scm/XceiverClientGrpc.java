@@ -133,7 +133,7 @@ public class XceiverClientGrpc extends XceiverClientSpi {
         OzoneConfigKeys.OZONE_NETWORK_TOPOLOGY_AWARE_READ_DEFAULT);
     this.trustManager = trustManager;
     this.getBlockDNcache = new ConcurrentHashMap<>();
-    LOG.info("{} is created", XceiverClientGrpc.class.getSimpleName());
+    LOG.info("{} for pipeline {} is created", XceiverClientGrpc.class.getSimpleName(), pipeline);
   }
 
   /**

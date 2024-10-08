@@ -213,7 +213,7 @@ public final class XceiverServerDomainSocket implements XceiverServerSpi, Runnab
         peer = new DomainPeer(connSock);
         peer.setReadTimeout(readTimeoutMs);
         peer.setWriteTimeout(writeTimeoutMs);
-        LOG.debug("Accepted a new connection. xceriverCount {}", xceriverCount.get());
+        LOG.info("Accepted a new connection. xceriverCount {}", xceriverCount.get());
 
         // Make sure the xceiver count is not exceeded
         if (xceriverCount.get() >= maxXceiverCount) {

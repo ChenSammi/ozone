@@ -64,7 +64,7 @@ public class TestDomainSocketFactory {
     OzoneClientConfig clientConfig = conf.getObject(OzoneClientConfig.class);
     clientConfig.setShortCircuitReadDisableInterval(1);
     conf.setFromObject(clientConfig);
-    conf.set(OzoneClientConfig.OZONE_DOMAIN_SOCKET_PATH, "/Users/sammi/ozone_dn_socket");
+    conf.set(OzoneClientConfig.OZONE_DOMAIN_SOCKET_PATH, "/Users/sammi/int/ozone_dn_socket");
 
     // create DomainSocketFactory
     DomainSocketFactory domainSocketFactory = DomainSocketFactory.getInstance(conf);
