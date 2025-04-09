@@ -747,7 +747,7 @@ public class TestXceiverServerDomainSocket {
     dataVolume.format(cID);
     dataVolume.setDbParentDir(volume);
     assertTrue(dataVolume.getDbParentDir() != null);
-    ContainerSet containerSet = new ContainerSet(1000);
+    ContainerSet containerSet = ContainerSet.newReadOnlyContainerSet(1000);
 
     // create HddsDispatcher
     StateContext context = ContainerTestUtils.getMockContext(datanodeDetails, conf);

@@ -58,23 +58,23 @@ public class TestShortCircuitChunkInputStream extends TestChunkInputStream {
   @TempDir
   private File dir;
 
-  @Override
-  int getDatanodeCount() {
-    return 1;
-  }
-
-  @Override
-  void setCustomizedProperties(OzoneConfiguration configuration) {
-    OzoneClientConfig clientConfig = configuration.getObject(OzoneClientConfig.class);
-    clientConfig.setShortCircuit(true);
-    configuration.setFromObject(clientConfig);
-    configuration.set(OzoneClientConfig.OZONE_DOMAIN_SOCKET_PATH,
-        new File(dir, "ozone-socket").getAbsolutePath());
-    GenericTestUtils.setLogLevel(XceiverClientShortCircuit.LOG, Level.DEBUG);
-    GenericTestUtils.setLogLevel(XceiverClientGrpc.LOG, Level.DEBUG);
-    GenericTestUtils.setLogLevel(LocalChunkInputStream.LOG, Level.DEBUG);
-    GenericTestUtils.setLogLevel(BlockInputStream.LOG, Level.DEBUG);
-  }
+//  @Override
+//  static int getDatanodeCount() {
+//    return 1;
+//  }
+//
+//  @Override
+//  void setCustomizedProperties(OzoneConfiguration configuration) {
+//    OzoneClientConfig clientConfig = configuration.getObject(OzoneClientConfig.class);
+//    clientConfig.setShortCircuit(true);
+//    configuration.setFromObject(clientConfig);
+//    configuration.set(OzoneClientConfig.OZONE_DOMAIN_SOCKET_PATH,
+//        new File(dir, "ozone-socket").getAbsolutePath());
+//    GenericTestUtils.setLogLevel(XceiverClientShortCircuit.LOG, Level.DEBUG);
+//    GenericTestUtils.setLogLevel(XceiverClientGrpc.LOG, Level.DEBUG);
+//    GenericTestUtils.setLogLevel(LocalChunkInputStream.LOG, Level.DEBUG);
+//    GenericTestUtils.setLogLevel(BlockInputStream.LOG, Level.DEBUG);
+//  }
 
   @Override
   ReplicationConfig getRepConfig() {
@@ -90,7 +90,8 @@ public class TestShortCircuitChunkInputStream extends TestChunkInputStream {
   @Override
   @Unhealthy("Run it locally since it requires libhadoop.so.")
   void testAll(ContainerLayoutVersion layout) throws Exception {
-    try (MiniOzoneCluster cluster = newCluster(layout)) {
+    try (MiniOzoneCluster cluster = newCluster()) {
+      updateConfig(layout);
       cluster.waitForClusterToBeReady();
       assumeTrue(DomainSocketFactory.getInstance(cluster.getConf()).isServiceReady());
 
@@ -118,7 +119,8 @@ public class TestShortCircuitChunkInputStream extends TestChunkInputStream {
   @ContainerLayoutTestInfo.ContainerTest
   @Unhealthy("Run it locally since it requires libhadoop.so.")
   void testFallbackToGrpc(ContainerLayoutVersion layout) throws Exception {
-    try (MiniOzoneCluster cluster = newCluster(layout)) {
+    try (MiniOzoneCluster cluster = newCluster()) {
+      updateConfig(layout);
       cluster.waitForClusterToBeReady();
       assumeTrue(DomainSocketFactory.getInstance(cluster.getConf()).isServiceReady());
 
