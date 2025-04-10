@@ -41,7 +41,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.FileDescriptor;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -68,9 +67,6 @@ final class Receiver implements Runnable {
   public static final Logger LOG = LoggerFactory.getLogger(Receiver.class);
 
   private DomainPeer peer;
-  private final String remoteAddress; // address of remote side
-  private final String remoteAddressWithoutPort; // only the address, no port
-  private final String localAddress;  // local address of this daemon
   private final XceiverServerDomainSocket domainSocketServer;
   private final ContainerDispatcher dispatcher;
   private final ContainerMetrics metrics;
@@ -96,10 +92,6 @@ final class Receiver implements Runnable {
     this.readExecutors = executor;
     this.metrics = metrics;
     this.bufferSize = conf.getObject(OzoneClientConfig.class).getShortCircuitBufferSize();
-    remoteAddress = peer.getRemoteAddressString();
-    localAddress = peer.getLocalAddressString();
-    final int colonIdx = remoteAddress.indexOf(':');
-    remoteAddressWithoutPort = (colonIdx < 0) ? remoteAddress : remoteAddress.substring(0, colonIdx);
   }
 
   @Override
@@ -218,10 +210,10 @@ final class Receiver implements Runnable {
         if (responseProto.getResult() == ContainerProtos.Result.SUCCESS && type == ContainerProtos.Type.GetBlock) {
           // get FileDescriptor
           Handler handler = dispatcher.getHandler(ContainerProtos.ContainerType.KeyValueContainer);
-          FileInputStream fis = handler.getBlockInputStream(request);
-          Preconditions.checkNotNull(fis,
+          FileDescriptor fd = handler.getBlockFileDescriptor(request);
+          Preconditions.checkNotNull(fd,
               "Failed to get block InputStream for block " + request.getGetBlock().getBlockID());
-          entry.setFis(fis);
+          entry.setFD(fd);
         }
         entry.setResponse(responseProto);
         sendResponse(entry);
@@ -242,7 +234,7 @@ final class Receiver implements Runnable {
     lock.lock();
     try {
       entry.setSendStartTimeNs();
-      FileInputStream fis = entry.getFis();
+      FileDescriptor fd = entry.getFD();
       DataOutputStream output = new DataOutputStream(new BufferedOutputStream(socketOut, bufferSize));
       output.writeShort(DATA_TRANSFER_VERSION);
       output.writeShort(type.getNumber());
@@ -252,10 +244,10 @@ final class Receiver implements Runnable {
             getBlockMapKey(entry.getRequest()), peer.getDomainSocket());
       }
       output.flush();
-      if (fis != null) {
+      if (fd != null) {
         // send FileDescriptor
         FileDescriptor[] fds = new FileDescriptor[1];
-        fds[0] = fis.getFD();
+        fds[0] = fd;
         DomainSocket sock = peer.getDomainSocket();
         // this API requires send at least one byte buf.
         sock.sendFileDescriptors(fds, buf, 0, buf.length);
@@ -268,9 +260,9 @@ final class Receiver implements Runnable {
     } finally {
       lock.unlock();
       entry.setSendFinishTimeNs();
-      if (entry.getFis() != null) {
+      if (entry.getFD() != null) {
         try {
-          entry.getFis().close();
+          entry.getFD().close();
           if (LOG.isDebugEnabled()) {
             LOG.info("FD is closed for {}", getBlockMapKey(entry.getRequest()));
           }
@@ -297,7 +289,7 @@ final class Receiver implements Runnable {
   static class TaskEntry {
     private ContainerCommandRequestProto request;
     private ContainerCommandResponseProto response;
-    private FileInputStream fis;
+    private FileDescriptor fd;
     private long receiveStartTimeNs;
     private long inQueueStartTimeNs;
     private long outQueueStartTimeNs;
@@ -313,8 +305,8 @@ final class Receiver implements Runnable {
       return response;
     }
 
-    public FileInputStream getFis() {
-      return fis;
+    public FileDescriptor getFD() {
+      return fd;
     }
 
     public ContainerCommandRequestProto getRequest() {
@@ -349,8 +341,8 @@ final class Receiver implements Runnable {
       this.response = responseProto;
     }
 
-    public void setFis(FileInputStream is) {
-      this.fis = is;
+    public void setFD(FileDescriptor fd) {
+      this.fd = fd;
     }
 
     public void setSendStartTimeNs() {

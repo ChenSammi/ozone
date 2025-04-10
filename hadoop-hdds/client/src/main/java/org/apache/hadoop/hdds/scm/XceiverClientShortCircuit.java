@@ -172,6 +172,7 @@ public class XceiverClientShortCircuit extends XceiverClientSpi {
     }
   }
 
+  @Override
   public boolean isClosed() {
     return closed;
   }

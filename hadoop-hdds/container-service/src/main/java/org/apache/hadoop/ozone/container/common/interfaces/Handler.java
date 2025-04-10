@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.container.common.interfaces;
 
 import static org.apache.hadoop.ozone.container.common.interfaces.Container.ScanResult;
 
+import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -232,6 +233,6 @@ public abstract class Handler {
     this.clusterId = clusterID;
   }
 
-  public abstract FileInputStream getBlockInputStream(ContainerCommandRequestProto request)
+  public abstract FileDescriptor getBlockFileDescriptor(ContainerCommandRequestProto request)
       throws IOException;
 }

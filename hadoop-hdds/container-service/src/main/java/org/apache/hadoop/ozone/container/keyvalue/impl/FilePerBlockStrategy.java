@@ -31,6 +31,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -38,6 +39,7 @@ import java.io.RandomAccessFile;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import org.apache.hadoop.fs.FileUtil;
@@ -214,15 +216,14 @@ public class FilePerBlockStrategy implements ChunkManager {
   }
 
   @Override
-  public FileInputStream getShortCircuitFd(Container container, BlockID blockID) throws StorageContainerException {
+  public FileDescriptor getShortCircuitFd(Container container, BlockID blockID) throws StorageContainerException {
     checkLayoutVersion(container);
     final File chunkFile = getChunkFile(container, blockID);
-    FileInputStream fis = null;
+    FileDescriptor fd = null;
     try {
-      fis = new FileInputStream(NativeIO.getShareDeleteFileDescriptor(chunkFile, 0));
-      return fis;
+      fd = NativeIO.getShareDeleteFileDescriptor(chunkFile, 0);
+      return fd;
     } catch (Exception e) {
-      IOUtils.closeQuietly(fis);
       LOG.warn("getShortCircuitFds failed", e);
       throw new StorageContainerException("getShortCircuitFds " +
           "for short-circuit local reads failed", GET_SHORT_CIRCUIT_FD_FAILED);

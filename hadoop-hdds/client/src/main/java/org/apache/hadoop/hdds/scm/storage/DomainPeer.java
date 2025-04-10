@@ -65,6 +65,7 @@ public class DomainPeer implements Closeable {
     return !socket.isOpen();
   }
 
+  @Override
   public void close() throws IOException {
     socket.close();
     LOG.info("{} is closed", socket);

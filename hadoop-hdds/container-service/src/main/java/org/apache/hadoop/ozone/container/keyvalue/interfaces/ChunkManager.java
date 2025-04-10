@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.container.keyvalue.interfaces;
 
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.UNSUPPORTED_REQUEST;
 
+import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -79,14 +80,14 @@ public interface ChunkManager {
       DispatcherContext dispatcherContext) throws StorageContainerException;
 
   /**
-   * Get the FileInputStream of a given chunk, to share with client for short circuit read.
+   * Get the FileDescriptor of a given chunk, to share with client for short circuit read.
    *
    * @param container - Container for the chunk
    * @param blockID - ID of the block.
-   * @return FileInputStream  - input stream of block file
+   * @return FileDescriptor  - input file descriptor of block file
    * @throws StorageContainerException
    */
-  default FileInputStream getShortCircuitFd(Container container, BlockID blockID)
+  default FileDescriptor getShortCircuitFd(Container container, BlockID blockID)
       throws StorageContainerException {
     throw new StorageContainerException("Operation is not supported for " + this.getClass().getSimpleName(),
         UNSUPPORTED_REQUEST);

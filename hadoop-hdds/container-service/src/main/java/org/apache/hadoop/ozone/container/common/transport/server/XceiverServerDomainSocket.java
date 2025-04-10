@@ -20,6 +20,15 @@ package org.apache.hadoop.ozone.container.common.transport.server;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import java.io.IOException;
+import java.net.SocketTimeoutException;
+import java.nio.channels.AsynchronousCloseException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
@@ -39,16 +48,6 @@ import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfigurati
 import org.apache.hadoop.util.Daemon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.net.SocketTimeoutException;
-import java.nio.channels.AsynchronousCloseException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Creates a DomainSocket server endpoint that acts as the communication layer for Ozone containers.
@@ -323,16 +322,5 @@ public final class XceiverServerDomainSocket implements XceiverServerSpi, Runnab
   @VisibleForTesting
   public void setInjector(FaultInjector injector) {
     this.injector = injector;
-  }
-
-  /**
-   * Inject pause for test only.
-   *
-   * @throws IOException
-   */
-  private void injectPause() throws IOException {
-    if (injector != null) {
-      injector.pause();
-    }
   }
 }

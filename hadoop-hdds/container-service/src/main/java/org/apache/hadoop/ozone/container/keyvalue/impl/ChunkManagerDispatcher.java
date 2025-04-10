@@ -23,6 +23,7 @@ import static org.apache.hadoop.ozone.container.common.impl.ContainerLayoutVersi
 
 import com.google.common.base.Preconditions;
 import jakarta.annotation.Nonnull;
+import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.EnumMap;
@@ -142,7 +143,7 @@ public class ChunkManagerDispatcher implements ChunkManager {
   }
 
   @Override
-  public FileInputStream getShortCircuitFd(Container container, BlockID blockID)
+  public FileDescriptor getShortCircuitFd(Container container, BlockID blockID)
       throws StorageContainerException {
     return selectHandler(container).getShortCircuitFd(container, blockID);
   }

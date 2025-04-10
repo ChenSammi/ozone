@@ -85,6 +85,7 @@ import static org.apache.hadoop.hdds.scm.XceiverClientShortCircuit.vintPrefixed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
@@ -697,7 +698,7 @@ public class TestXceiverServerDomainSocket {
       assertEquals(ContainerProtos.Type.ReadChunk.getNumber(), ret);
       ContainerProtos.ContainerCommandResponseProto responseProto =
           ContainerProtos.ContainerCommandResponseProto.parseFrom(vintPrefixed(inputStream));
-      assertTrue(responseProto.getResult() == ContainerProtos.Result.UNSUPPORTED_REQUEST);
+      assertSame(ContainerProtos.Result.UNSUPPORTED_REQUEST, responseProto.getResult();
     } finally {
       factory.close();
       IOUtils.closeQuietly(sock);
@@ -706,21 +707,6 @@ public class TestXceiverServerDomainSocket {
   }
 
   private ContainerProtos.ContainerCommandRequestProto getBlockRequest() {
-    long value = 1;
-    String datanodeUUID = UUID.randomUUID().toString();
-    ContainerProtos.GetBlockRequestProto.Builder getBlock =
-        ContainerProtos.GetBlockRequestProto.newBuilder()
-            .setBlockID(new BlockID(value, value).getDatanodeBlockIDProtobuf())
-            .setRequestShortCircuitAccess(true);
-    return ContainerProtos.ContainerCommandRequestProto.newBuilder()
-        .setCmdType(GetBlock)
-        .setContainerID(value)
-        .setGetBlock(getBlock)
-        .setDatanodeUuid(datanodeUUID)
-        .build();
-  }
-
-  private ContainerProtos.ContainerCommandRequestProto getReadChunkRequest() {
     long value = 1;
     String datanodeUUID = UUID.randomUUID().toString();
     ContainerProtos.GetBlockRequestProto.Builder getBlock =
@@ -746,7 +732,7 @@ public class TestXceiverServerDomainSocket {
     HddsVolume dataVolume = (HddsVolume) volumeSet.getVolumesList().get(0);
     dataVolume.format(cID);
     dataVolume.setDbParentDir(volume);
-    assertTrue(dataVolume.getDbParentDir() != null);
+    assertNotNull(dataVolume.getDbParentDir());
     ContainerSet containerSet = ContainerSet.newReadOnlyContainerSet(1000);
 
     // create HddsDispatcher

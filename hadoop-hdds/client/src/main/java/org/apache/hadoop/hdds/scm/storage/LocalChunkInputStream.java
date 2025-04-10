@@ -54,10 +54,8 @@ public class LocalChunkInputStream extends ChunkInputStream
     implements Seekable, CanUnbuffer, ByteBufferReadable {
 
   private final ChunkInfo chunkInfo;
-  private final FileInputStream blockInputStream;
   private final FileChannel dataIn;
   private final ShortCircuitValidator validator;
-  private final XceiverClientShortCircuit xceiverClientShortCircuit;
   private final boolean verifyChecksum;
   public static final Logger LOG =
       LoggerFactory.getLogger(LocalChunkInputStream.class);
@@ -68,9 +66,7 @@ public class LocalChunkInputStream extends ChunkInputStream
       XceiverClientShortCircuit xceiverClientShortCircuit, FileInputStream blockInputStream) {
     super(chunkInfo, blockId, xceiverClientFactory, pipelineSupplier, verifyChecksum, tokenSupplier);
     this.chunkInfo = chunkInfo;
-    this.blockInputStream = blockInputStream;
     this.dataIn = blockInputStream.getChannel();
-    this.xceiverClientShortCircuit = xceiverClientShortCircuit;
     this.validator = this::validateChunk;
     this.verifyChecksum = verifyChecksum;
     if (LOG.isDebugEnabled()) {

@@ -244,6 +244,7 @@ public class XceiverClientGrpc extends XceiverClientSpi {
     }
   }
 
+  @Override
   public boolean isClosed() {
     return closed;
   }

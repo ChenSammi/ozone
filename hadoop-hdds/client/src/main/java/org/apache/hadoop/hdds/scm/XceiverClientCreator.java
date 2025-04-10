@@ -69,6 +69,7 @@ public class XceiverClientCreator implements XceiverClientFactory {
     return securityEnabled;
   }
 
+  @Override
   public boolean isShortCircuitEnabled() {
     return shortCircuitEnabled && domainSocketFactory.isServiceReady();
   }

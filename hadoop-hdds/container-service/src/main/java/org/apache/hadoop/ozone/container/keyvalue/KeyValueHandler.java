@@ -55,6 +55,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Striped;
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
@@ -153,8 +154,8 @@ public class KeyValueHandler extends Handler {
   // A striped lock that is held during container creation.
   private final Striped<Lock> containerCreationLocks;
   private static FaultInjector injector;
-  // map temporarily carries FileInputStreams for short-circuit read requests
-  private final Map<String, FileInputStream> streamMap = new ConcurrentHashMap<>();
+  // map temporarily carries the FileDescriptor for short-circuit read requests
+  private final Map<String, FileDescriptor> streamMap = new ConcurrentHashMap<>();
   private OzoneContainer ozoneContainer;
   private final Clock clock;
 
@@ -752,17 +753,18 @@ public class KeyValueHandler extends Handler {
     return getBlockDataResponse(request, responseData, shortCircuitGranted);
   }
 
-  public FileInputStream getBlockInputStream(ContainerCommandRequestProto request) throws IOException {
+  @Override
+  public FileDescriptor getBlockInputStream(ContainerCommandRequestProto request) throws IOException {
     if (request.getCmdType() != Type.GetBlock) {
       throw new StorageContainerException("Request type mismatch, expected " +  Type.GetBlock +
           ", received " + request.getCmdType(), ContainerProtos.Result.MALFORMED_REQUEST);
     }
     String mapKey = getBlockMapKey(request);
-    FileInputStream fis = streamMap.remove(mapKey);
+    FileDescriptor fd = streamMap.remove(mapKey);
     if (LOG.isDebugEnabled()) {
       LOG.debug("streamMap remove stream for {}", mapKey);
     }
-    return fis;
+    return fd;
   }
 
   /**
