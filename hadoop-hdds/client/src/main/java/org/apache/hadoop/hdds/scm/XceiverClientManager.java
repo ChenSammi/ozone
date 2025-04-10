@@ -18,10 +18,10 @@
 package org.apache.hadoop.hdds.scm;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.hadoop.hdds.DatanodeVersion.SHORT_CIRCUIT_READS;
 import static org.apache.hadoop.hdds.conf.ConfigTag.OZONE;
 import static org.apache.hadoop.hdds.conf.ConfigTag.PERFORMANCE;
 import static org.apache.hadoop.hdds.scm.exceptions.SCMException.ResultCodes.NO_REPLICA_FOUND;
-import static org.apache.hadoop.hdds.DatanodeVersion.SHORT_CIRCUIT_READS;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -43,9 +43,9 @@ import org.apache.hadoop.hdds.scm.client.ClientTrustManager;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.storage.DomainSocketFactory;
 import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.ozone.util.CacheMetrics;
 import org.apache.hadoop.ozone.util.OzoneNetUtils;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.ozone.util.CacheMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

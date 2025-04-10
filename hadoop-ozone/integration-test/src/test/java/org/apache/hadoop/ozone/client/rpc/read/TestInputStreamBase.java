@@ -17,10 +17,10 @@
 
 package org.apache.hadoop.ozone.client.rpc.read;
 
+import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.THREE;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_CONTAINER_LAYOUT_KEY;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_DEADNODE_INTERVAL;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_STALENODE_INTERVAL;
-import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.THREE;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -52,9 +52,8 @@ abstract class TestInputStreamBase {
   static final int MAX_FLUSH_SIZE = 2 * FLUSH_SIZE;   // 4MB
   static final int BLOCK_SIZE = 2 * MAX_FLUSH_SIZE;   // 8MB
   static final int BYTES_PER_CHECKSUM = 256 * 1024;   // 256KB
-  static int dnCount = 5;
 
-  protected static MiniOzoneCluster newCluster() throws Exception {
+  protected MiniOzoneCluster newCluster() throws Exception {
     OzoneConfiguration conf = new OzoneConfiguration();
 
     OzoneClientConfig config = conf.getObject(OzoneClientConfig.class);
@@ -91,11 +90,11 @@ abstract class TestInputStreamBase {
     return UUID.randomUUID().toString();
   }
 
-  static int getDatanodeCount() {
-    return dnCount;
+  int getDatanodeCount() {
+    return 5;
   }
 
-  static void setCustomizedProperties(OzoneConfiguration configuration) {
+  void setCustomizedProperties(OzoneConfiguration configuration) {
   }
 
   ReplicationConfig getRepConfig() {

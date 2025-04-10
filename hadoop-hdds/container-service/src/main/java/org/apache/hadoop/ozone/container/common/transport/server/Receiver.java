@@ -1,13 +1,12 @@
-/**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,26 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.hadoop.ozone.container.common.transport.server;
 
+import static org.apache.hadoop.hdds.scm.OzoneClientConfig.DATA_TRANSFER_MAGIC_CODE;
+import static org.apache.hadoop.hdds.scm.OzoneClientConfig.DATA_TRANSFER_VERSION;
+import static org.apache.hadoop.hdds.scm.protocolPB.ContainerCommandResponseBuilders.getContainerCommandResponse;
+import static org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils.getBlockMapKey;
+
+import com.google.common.base.Preconditions;
 import io.opentracing.Scope;
 import io.opentracing.Span;
 import io.opentracing.util.GlobalTracer;
-import org.apache.hadoop.hdds.conf.ConfigurationSource;
-import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
-import org.apache.hadoop.hdds.scm.OzoneClientConfig;
-import org.apache.hadoop.hdds.scm.storage.DomainPeer;
-import org.apache.hadoop.hdds.tracing.TracingUtil;
-import org.apache.hadoop.io.IOUtils;
-import org.apache.hadoop.net.unix.DomainSocket;
-import org.apache.hadoop.ozone.container.common.helpers.ContainerMetrics;
-import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
-import org.apache.hadoop.ozone.container.common.interfaces.Handler;
-import com.google.common.base.Preconditions;
-import org.apache.hadoop.util.LimitInputStream;
-import org.apache.ratis.thirdparty.com.google.protobuf.CodedInputStream;
-import org.slf4j.Logger;
-
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
@@ -50,15 +41,22 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
+import org.apache.hadoop.hdds.conf.ConfigurationSource;
+import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerCommandRequestProto;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerCommandResponseProto;
+import org.apache.hadoop.hdds.scm.OzoneClientConfig;
+import org.apache.hadoop.hdds.scm.storage.DomainPeer;
+import org.apache.hadoop.hdds.tracing.TracingUtil;
+import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.net.unix.DomainSocket;
+import org.apache.hadoop.ozone.container.common.helpers.ContainerMetrics;
+import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
+import org.apache.hadoop.ozone.container.common.interfaces.Handler;
+import org.apache.hadoop.util.LimitInputStream;
+import org.apache.ratis.thirdparty.com.google.protobuf.CodedInputStream;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.hadoop.hdds.scm.OzoneClientConfig.DATA_TRANSFER_MAGIC_CODE;
-import static org.apache.hadoop.hdds.scm.OzoneClientConfig.DATA_TRANSFER_VERSION;
-import static org.apache.hadoop.hdds.scm.protocolPB.ContainerCommandResponseBuilders.getContainerCommandResponse;
-import static org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils.getBlockMapKey;
 
 /**
  * Class for processing incoming/outgoing requests.
@@ -260,16 +258,6 @@ final class Receiver implements Runnable {
     } finally {
       lock.unlock();
       entry.setSendFinishTimeNs();
-      if (entry.getFD() != null) {
-        try {
-          entry.getFD().close();
-          if (LOG.isDebugEnabled()) {
-            LOG.info("FD is closed for {}", getBlockMapKey(entry.getRequest()));
-          }
-        } catch (IOException e) {
-          LOG.warn("Failed to close FD for {}", getBlockMapKey(entry.getRequest()), e);
-        }
-      }
       if (LOG.isDebugEnabled()) {
         LOG.debug("Request {} {}:{}, receive {} ns, in queue {} ns, " +
                 " handle {} ns, send out {} ns, total {} ns", type, responseProto.getClientId().toStringUtf8(),
@@ -289,7 +277,7 @@ final class Receiver implements Runnable {
   static class TaskEntry {
     private ContainerCommandRequestProto request;
     private ContainerCommandResponseProto response;
-    private FileDescriptor fd;
+    private FileDescriptor fileDescriptor;
     private long receiveStartTimeNs;
     private long inQueueStartTimeNs;
     private long outQueueStartTimeNs;
@@ -306,7 +294,7 @@ final class Receiver implements Runnable {
     }
 
     public FileDescriptor getFD() {
-      return fd;
+      return fileDescriptor;
     }
 
     public ContainerCommandRequestProto getRequest() {
@@ -342,7 +330,7 @@ final class Receiver implements Runnable {
     }
 
     public void setFD(FileDescriptor fd) {
-      this.fd = fd;
+      this.fileDescriptor = fd;
     }
 
     public void setSendStartTimeNs() {

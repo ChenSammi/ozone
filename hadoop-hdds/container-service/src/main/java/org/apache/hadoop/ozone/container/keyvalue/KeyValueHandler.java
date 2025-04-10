@@ -56,7 +56,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Striped;
 import java.io.File;
 import java.io.FileDescriptor;
-import java.io.FileInputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -168,6 +167,7 @@ public class KeyValueHandler extends Handler {
     this(config, datanodeId, contSet, volSet, metrics, icrSender, Clock.systemUTC(), null);
   }
 
+  @SuppressWarnings("parameternumber")
   public KeyValueHandler(ConfigurationSource config,
                          String datanodeId,
                          ContainerSet contSet,
@@ -729,10 +729,10 @@ public class KeyValueHandler extends Handler {
             && ozoneContainer.getReadDomainSocketChannel() != null
             && ozoneContainer.getReadDomainSocketChannel().isStarted();
         if (domainSocketServerEnabled) {
-          FileInputStream fis = chunkManager.getShortCircuitFd(kvContainer, blockID);
-          Preconditions.checkState(fis != null);
+          FileDescriptor fd = chunkManager.getShortCircuitFd(kvContainer, blockID);
+          Preconditions.checkState(fd != null);
           String mapKey = getBlockMapKey(request);
-          streamMap.put(mapKey, fis);
+          streamMap.put(mapKey, fd);
           shortCircuitGranted = true;
         }
       }
@@ -754,7 +754,7 @@ public class KeyValueHandler extends Handler {
   }
 
   @Override
-  public FileDescriptor getBlockInputStream(ContainerCommandRequestProto request) throws IOException {
+  public FileDescriptor getBlockFileDescriptor(ContainerCommandRequestProto request) throws IOException {
     if (request.getCmdType() != Type.GetBlock) {
       throw new StorageContainerException("Request type mismatch, expected " +  Type.GetBlock +
           ", received " + request.getCmdType(), ContainerProtos.Result.MALFORMED_REQUEST);

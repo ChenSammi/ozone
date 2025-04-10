@@ -24,7 +24,6 @@ import static org.apache.hadoop.ozone.container.common.impl.ContainerLayoutVersi
 import com.google.common.base.Preconditions;
 import jakarta.annotation.Nonnull;
 import java.io.FileDescriptor;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;

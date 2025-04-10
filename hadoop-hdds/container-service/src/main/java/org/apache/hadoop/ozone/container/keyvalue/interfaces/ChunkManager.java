@@ -20,7 +20,6 @@ package org.apache.hadoop.ozone.container.keyvalue.interfaces;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.UNSUPPORTED_REQUEST;
 
 import java.io.FileDescriptor;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.hadoop.hdds.client.BlockID;
