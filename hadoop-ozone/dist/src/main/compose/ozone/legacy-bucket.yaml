@@ -21,7 +21,11 @@ x-legacy-bucket-config:
     - OZONE-SITE.XML_ozone.default.bucket.layout=LEGACY
 
 services:
-  datanode:
+  datanode1:
+    <<: *legacy-bucket-config
+  datanode2:
+    <<: *legacy-bucket-config
+  datanode3:
     <<: *legacy-bucket-config
   om:
     <<: *legacy-bucket-config

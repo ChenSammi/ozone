@@ -22,7 +22,11 @@ x-profiling-config:
     - ASYNC_PROFILER_HOME=/opt/profiler
 
 services:
-  datanode:
+  datanode1:
+    <<: *profiling-config
+  datanode2:
+    <<: *profiling-config
+  datanode3:
     <<: *profiling-config
   om:
     <<: *profiling-config
