@@ -83,17 +83,17 @@ Check if Recon picks up OM data
 Check if Recon picks up DN heartbeats
     ${result} =         Execute                             curl --negotiate -u : -LSs ${API_ENDPOINT_URL}/datanodes
                         Should contain      ${result}       datanodes
-                        Should Match Regexp    ${result}    datanode[-_]1
-                        Should Match Regexp    ${result}    datanode[-_]2
-                        Should Match Regexp    ${result}    datanode[-_]3
+                        Should Match Regexp    ${result}    datanode1[-_]1
+                        Should Match Regexp    ${result}    datanode2[-_]1
+                        Should Match Regexp    ${result}    datanode3[-_]1
 
     ${result} =         Execute                             curl --negotiate -u : -LSs ${API_ENDPOINT_URL}/pipelines
                         Should contain      ${result}       pipelines
                         Should contain      ${result}       RATIS
                         Should contain      ${result}       OPEN
-                        Should Match Regexp    ${result}    datanode[-_]1
-                        Should Match Regexp    ${result}    datanode[-_]2
-                        Should Match Regexp    ${result}    datanode[-_]3
+                        Should Match Regexp    ${result}    datanode1[-_]1
+                        Should Match Regexp    ${result}    datanode2[-_]1
+                        Should Match Regexp    ${result}    datanode3[-_]1
 
     ${result} =         Execute                             curl --negotiate -u : -LSs ${API_ENDPOINT_URL}/clusterState
                         Should contain      ${result}       \"totalDatanodes\"
