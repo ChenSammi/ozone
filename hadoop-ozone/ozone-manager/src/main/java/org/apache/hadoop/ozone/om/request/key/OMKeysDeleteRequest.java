@@ -95,8 +95,14 @@ public class OMKeysDeleteRequest extends OMKeyRequest {
 
     OzoneManagerProtocolProtos.DeleteKeyArgs deleteKeyArgs =
         deleteKeyRequest.getDeleteKeys();
+    OMResponse.Builder omResponse =
+        OmResponseUtil.getOMResponseBuilder(getOmRequest());
 
     List<String> deleteKeys = new ArrayList<>(deleteKeyArgs.getKeysList());
+    List<Long> deleteKeyUpdateIDs = null;
+    if (deleteKeyArgs.getUpdateIDsCount() > 0) {
+      deleteKeyUpdateIDs = new ArrayList<>(deleteKeyArgs.getUpdateIDsList());
+    }
     List<OmKeyInfo> deleteKeysInfo = new ArrayList<>();
 
     Exception exception = null;
@@ -119,8 +125,6 @@ public class OMKeysDeleteRequest extends OMKeyRequest {
     AuditLogger auditLogger = ozoneManager.getAuditLogger();
     OzoneManagerProtocolProtos.UserInfo userInfo = getOmRequest().getUserInfo();
 
-    OMResponse.Builder omResponse =
-        OmResponseUtil.getOMResponseBuilder(getOmRequest());
     OMMetadataManager omMetadataManager = ozoneManager.getMetadataManager();
 
     boolean acquiredLock = false;
@@ -164,6 +168,19 @@ public class OMKeysDeleteRequest extends OMKeyRequest {
           unDeletedKeys.addKeys(keyName);
           keyToError.put(keyName, new ErrorInfo(OMException.ResultCodes.KEY_NOT_FOUND.name(), "Key does not exist"));
           continue;
+        } else {
+          if (deleteKeyUpdateIDs != null) {
+            Long updateID = deleteKeyUpdateIDs.get(indexFailed);
+            if (updateID == null || updateID != omKeyInfo.getUpdateID()) {
+              deleteStatus = false;
+              LOG.warn("Received a request to delete a Key {} whose updateID not match or null", objectKey);
+              deleteKeys.remove(keyName);
+              unDeletedKeys.addKeys(keyName);
+              keyToError.put(keyName,
+                  new ErrorInfo(OMException.ResultCodes.METADATA_ERROR.name(), "UpdateID not match or null"));
+              continue;
+            }
+          }
         }
 
         try {
