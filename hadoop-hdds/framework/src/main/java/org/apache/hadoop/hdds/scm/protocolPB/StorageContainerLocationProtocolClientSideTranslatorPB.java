@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
+import jakarta.annotation.Nullable;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.annotation.InterfaceAudience;
 import org.apache.hadoop.hdds.client.ECReplicationConfig;
@@ -41,6 +42,7 @@ import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.DeletedBlocksTransactionInfo;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos.DeletedBlocksTransactionSummary;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.GetScmInfoResponseProto;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.TransferLeadershipRequestProto;
@@ -77,6 +79,8 @@ import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolPro
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.GetContainerWithPipelineRequestProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.GetContainersOnDecomNodeRequestProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.GetContainersOnDecomNodeResponseProto;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.GetDeletedBlocksTxnSummaryRequestProto;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.GetDeletedBlocksTxnSummaryResponseProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.GetExistContainerWithPipelinesInBatchRequestProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.GetFailedDeletedBlocksTxnRequestProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.GetFailedDeletedBlocksTxnResponseProto;
@@ -817,6 +821,18 @@ public final class StorageContainerLocationProtocolClientSideTranslatorPB
     return submitRequest(Type.ResetDeletedBlockRetryCount,
         builder -> builder.setResetDeletedBlockRetryCountRequest(request)).
         getResetDeletedBlockRetryCountResponse().getResetCount();
+  }
+
+  @Nullable
+  @Override
+  public DeletedBlocksTransactionSummary getDeletedBlockSummary() throws IOException {
+    GetDeletedBlocksTxnSummaryRequestProto request =
+        GetDeletedBlocksTxnSummaryRequestProto.newBuilder().build();
+    ScmContainerLocationResponse scmContainerLocationResponse = submitRequest(Type.GetDeletedBlocksTransactionSummary,
+        builder -> builder.setGetDeletedBlocksTxnSummaryRequest(request));
+    GetDeletedBlocksTxnSummaryResponseProto response =
+        scmContainerLocationResponse.getGetDeletedBlocksTxnSummaryResponse();
+    return response.hasSummary() ? response.getSummary() : null;
   }
 
   /**

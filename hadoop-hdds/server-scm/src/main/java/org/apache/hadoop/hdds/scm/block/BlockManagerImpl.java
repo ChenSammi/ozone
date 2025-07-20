@@ -93,7 +93,7 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
     this.writableContainerFactory = scm.getWritableContainerFactory();
 
     mxBean = MBeans.register("BlockManager", "BlockManagerImpl", this);
-    metrics = ScmBlockDeletingServiceMetrics.create();
+    metrics = ScmBlockDeletingServiceMetrics.create(this);
 
     // SCM block deleting transaction log and deleting service.
     deletedBlockLog = new DeletedBlockLogImpl(conf,
@@ -106,7 +106,7 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
     blockDeletingService =
         new SCMBlockDeletingService(deletedBlockLog,
             scm.getScmNodeManager(), scm.getEventQueue(), scm.getScmContext(),
-            scm.getSCMServiceManager(), conf, scmConfig,
+            scm.getSCMServiceManager(), conf, scm.getStatefulServiceStateManager(), scmConfig,
             metrics, scm.getSystemClock(), scm.getReconfigurationHandler());
   }
 
@@ -220,9 +220,7 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
       throw new SCMException("SafeModePrecheck failed for deleteBlocks",
           SCMException.ResultCodes.SAFE_MODE_EXCEPTION);
     }
-    Map<Long, List<Long>> containerBlocks = new HashMap<>();
-    // TODO: track the block size info so that we can reclaim the container
-    // TODO: used space when the block is deleted.
+    Map<Long, List<DeletedBlock>> containerBlocks = new HashMap<>();
     for (BlockGroup bg : keyBlocksInfoList) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Deleting blocks {}",
@@ -232,10 +230,10 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
         for (BlockID block : bg.getBlockIDs()) {
           long containerID = block.getContainerID();
           if (containerBlocks.containsKey(containerID)) {
-            containerBlocks.get(containerID).add(block.getLocalID());
+            containerBlocks.get(containerID).add(new DeletedBlock(block, -1, -1));
           } else {
-            List<Long> item = new ArrayList<>();
-            item.add(block.getLocalID());
+            List<DeletedBlock> item = new ArrayList<>();
+            item.add(new DeletedBlock(block, -1, -1));
             containerBlocks.put(containerID, item);
           }
         }
@@ -243,10 +241,10 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
         for (DeletedBlock block : bg.getAllDeletedBlocks()) {
           long containerID = block.getBlockID().getContainerID();
           if (containerBlocks.containsKey(containerID)) {
-            containerBlocks.get(containerID).add(block.getBlockID().getLocalID());
+            containerBlocks.get(containerID).add(block);
           } else {
-            List<Long> item = new ArrayList<>();
-            item.add(block.getBlockID().getLocalID());
+            List<DeletedBlock> item = new ArrayList<>();
+            item.add(block);
             containerBlocks.put(containerID, item);
           }
         }

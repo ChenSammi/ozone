@@ -19,6 +19,8 @@ package org.apache.hadoop.hdds.scm.block;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import com.google.protobuf.ByteString;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos.DeletedBlocksTransactionSummary;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
 import org.apache.hadoop.hdds.scm.metadata.Replicate;
 import org.apache.hadoop.hdds.utils.db.Table;
@@ -49,5 +51,8 @@ public interface DeletedBlockLogStateManager {
 
   void onFlush();
 
-  void reinitialize(Table<Long, DeletedBlocksTransaction> deletedBlocksTXTable);
+  void reinitialize(Table<Long, DeletedBlocksTransaction> deletedBlocksTXTable,
+    Table<String, ByteString> statefulConfigTable);
+
+  DeletedBlocksTransactionSummary getTransactionSummary();
 }
