@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import javax.management.ObjectName;
-import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.client.ContainerBlockID;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
@@ -93,13 +92,13 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
     this.writableContainerFactory = scm.getWritableContainerFactory();
 
     mxBean = MBeans.register("BlockManager", "BlockManagerImpl", this);
-    metrics = ScmBlockDeletingServiceMetrics.create();
+    metrics = ScmBlockDeletingServiceMetrics.create(this);
 
     // SCM block deleting transaction log and deleting service.
     deletedBlockLog = new DeletedBlockLogImpl(conf,
         scm,
         scm.getContainerManager(),
-        scm.getScmHAManager().getDBTransactionBuffer(),
+        scm.getScmHAManager().asSCMHADBTransactionBuffer(),
         metrics);
 
 
@@ -220,35 +219,21 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
       throw new SCMException("SafeModePrecheck failed for deleteBlocks",
           SCMException.ResultCodes.SAFE_MODE_EXCEPTION);
     }
-    Map<Long, List<Long>> containerBlocks = new HashMap<>();
-    // TODO: track the block size info so that we can reclaim the container
-    // TODO: used space when the block is deleted.
+    Map<Long, List<DeletedBlock>> containerBlocks = new HashMap<>();
     for (BlockGroup bg : keyBlocksInfoList) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Deleting blocks {}",
-            StringUtils.join(",", (!bg.getBlockIDs().isEmpty()) ? bg.getBlockIDs() : bg.getAllDeletedBlocks()));
+            StringUtils.join(",", bg.getAllDeletedBlocks()));
       }
-      if (!bg.getBlockIDs().isEmpty()) {
-        for (BlockID block : bg.getBlockIDs()) {
-          long containerID = block.getContainerID();
-          if (containerBlocks.containsKey(containerID)) {
-            containerBlocks.get(containerID).add(block.getLocalID());
-          } else {
-            List<Long> item = new ArrayList<>();
-            item.add(block.getLocalID());
-            containerBlocks.put(containerID, item);
-          }
-        }
-      } else {
-        for (DeletedBlock block : bg.getAllDeletedBlocks()) {
-          long containerID = block.getBlockID().getContainerID();
-          if (containerBlocks.containsKey(containerID)) {
-            containerBlocks.get(containerID).add(block.getBlockID().getLocalID());
-          } else {
-            List<Long> item = new ArrayList<>();
-            item.add(block.getBlockID().getLocalID());
-            containerBlocks.put(containerID, item);
-          }
+
+      for (DeletedBlock block : bg.getAllDeletedBlocks()) {
+        long containerID = block.getBlockID().getContainerID();
+        if (containerBlocks.containsKey(containerID)) {
+          containerBlocks.get(containerID).add(block);
+        } else {
+          List<DeletedBlock> item = new ArrayList<>();
+          item.add(block);
+          containerBlocks.put(containerID, item);
         }
       }
     }
