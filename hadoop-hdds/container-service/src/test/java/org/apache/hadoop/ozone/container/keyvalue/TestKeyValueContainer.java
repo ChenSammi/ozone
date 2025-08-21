@@ -55,7 +55,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -90,16 +92,19 @@ import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingP
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
+import org.apache.hadoop.ozone.container.keyvalue.helpers.ChunkUtils;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerUtil;
 import org.apache.hadoop.ozone.container.metadata.AbstractDatanodeStore;
 import org.apache.hadoop.ozone.container.metadata.DatanodeStore;
 import org.apache.hadoop.ozone.container.replication.CopyContainerCompression;
 import org.apache.hadoop.util.DiskChecker;
+import org.apache.ratis.util.AutoCloseableLock;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.rocksdb.ColumnFamilyOptions;
 import org.rocksdb.LiveFileMetaData;
+import javax.validation.constraints.AssertTrue;
 
 /**
  * Class to test KeyValue Container operations.
@@ -638,6 +643,62 @@ public class TestKeyValueContainer {
     KeyValueContainerUtil.removeContainer(
         keyValueContainer.getContainerData(), CONF);
     keyValueContainer.delete();
+
+    String containerMetaDataPath = keyValueContainerData
+        .getMetadataPath();
+    File containerMetaDataLoc = new File(containerMetaDataPath);
+
+    assertFalse(containerMetaDataLoc
+        .getParentFile().exists(), "Container directory still exists");
+
+    assertFalse(keyValueContainer.getContainerFile().exists(),
+        "Container File still exists");
+
+    if (isSameSchemaVersion(schemaVersion, OzoneConsts.SCHEMA_V3)) {
+      assertTrue(keyValueContainer.getContainerDBFile().exists());
+    } else {
+      assertFalse(keyValueContainer.getContainerDBFile().exists(),
+          "Container DB file still exists");
+    }
+  }
+
+  @Test
+  public void testDeleteContainerWithChunkFileLock()
+      throws Exception {
+    // use the latest layout version for this test, as there is no difference for different version.
+    init(ContainerTestVersionInfo.getLayoutList().get(ContainerTestVersionInfo.getLayoutList().size() - 1));
+    closeContainer();
+    keyValueContainer = new KeyValueContainer(
+        keyValueContainerData, CONF);
+    keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId);
+
+    // write one block file to create the chunks directory
+    String chunkPath = keyValueContainer.getContainerData().getChunksPath();
+    File testChunkFile = new File(chunkPath, "testChunk");
+    assertTrue(testChunkFile.createNewFile());
+    assertTrue(testChunkFile.exists());
+    // acquire block read file lock before deletion
+    AutoCloseableLock fileLock = ChunkUtils.getFileReadLock(testChunkFile.toPath());
+
+    KeyValueContainerUtil.removeContainer(
+        keyValueContainer.getContainerData(), CONF);
+    AtomicLong executionTimeMill = new AtomicLong(0);
+    CompletableFuture task = CompletableFuture.runAsync(() -> {
+      try {
+        long startTime = System.currentTimeMillis();
+        keyValueContainer.delete();
+        executionTimeMill.set(System.currentTimeMillis() - startTime);
+      } catch (StorageContainerException e) {
+        fail("fail to delete container for " + e.getMessage());
+      }
+    });
+    long sleepTime = 5000;
+    Thread.sleep(sleepTime);
+    fileLock.close();
+    task.get();
+
+    assertTrue(executionTimeMill.get() >= sleepTime,
+        "Container delete should take more than " + sleepTime + " ms, actual: " + executionTimeMill.get());
 
     String containerMetaDataPath = keyValueContainerData
         .getMetadataPath();
