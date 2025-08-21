@@ -109,11 +109,11 @@ public final class ChunkUtils {
     return fileStripedLock.get(filePath);
   }
 
-  private static AutoCloseableLock getFileReadLock(Path filePath) {
+  public static AutoCloseableLock getFileReadLock(Path filePath) {
     return AutoCloseableLock.acquire(getFileLock(filePath).readLock());
   }
 
-  private static AutoCloseableLock getFileWriteLock(Path filePath) {
+  public static AutoCloseableLock getFileWriteLock(Path filePath) {
     return AutoCloseableLock.acquire(getFileLock(filePath).writeLock());
   }
 
