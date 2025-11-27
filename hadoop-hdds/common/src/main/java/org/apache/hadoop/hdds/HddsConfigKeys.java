@@ -51,10 +51,6 @@ public final class HddsConfigKeys {
       "hdds.pipeline.report.interval";
   public static final String HDDS_PIPELINE_REPORT_INTERVAL_DEFAULT =
       "60s";
-  public static final String HDDS_DISK_BALANCER_REPORT_INTERVAL =
-      "hdds.disk.balancer.report.interval";
-  public static final String HDDS_DISK_BALANCER_REPORT_INTERVAL_DEFAULT =
-      "60s";
   public static final String HDDS_COMMAND_STATUS_REPORT_INTERVAL =
       "hdds.command.status.report.interval";
   public static final String HDDS_COMMAND_STATUS_REPORT_INTERVAL_DEFAULT =
@@ -332,6 +328,9 @@ public final class HddsConfigKeys {
 
   public static final String OZONE_SECURITY_RECONFIGURE_PROTOCOL_ACL =
       "ozone.security.reconfigure.protocol.acl";
+
+  public static final String HDDS_SECURITY_CLIENT_DATANODE_DISK_BALANCER_PROTOCOL_ACL =
+      "hdds.security.client.datanode.disk.balancer.protocol.acl";
 
   // Determines if the Container Chunk Manager will write user data to disk
   // Set to false only for specific performance tests

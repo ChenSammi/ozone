@@ -561,13 +561,7 @@ message DiskBalancerConfigurationProto {
 enum DiskBalancerRunningStatus {
     RUNNING = 1;
     STOPPED = 2;
-    UNKNOWN = 3;
-}
-
-enum DiskBalancerOpType{
-    START = 1;
-    STOP = 2;
-    UPDATE = 3;
+    PAUSED = 3;
 }
 
 message DatanodeDiskBalancerInfoProto {

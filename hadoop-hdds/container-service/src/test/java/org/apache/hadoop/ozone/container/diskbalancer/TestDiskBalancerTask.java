@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.container.diskbalancer;
 
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.CONTAINER_INTERNAL_ERROR;
 import static org.apache.hadoop.ozone.container.common.ContainerTestUtils.createDbInstancesForTestIfNeeded;
+import static org.apache.hadoop.ozone.container.diskbalancer.DiskBalancerService.DISK_BALANCER_DIR;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -57,7 +58,6 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerD
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
-import org.apache.hadoop.hdds.scm.storage.DiskBalancerConfiguration;
 import org.apache.hadoop.hdds.utils.FaultInjector;
 import org.apache.hadoop.ozone.container.checksum.ContainerChecksumTreeManager;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerMetrics;
@@ -108,7 +108,6 @@ public class TestDiskBalancerTask {
 
   private OzoneContainer ozoneContainer;
   private ContainerSet containerSet;
-  private ContainerController controller;
   private MutableVolumeSet volumeSet;
   private HddsVolume sourceVolume;
   private HddsVolume destVolume;
@@ -118,7 +117,6 @@ public class TestDiskBalancerTask {
   private static final long CONTAINER_SIZE = 1024L * 1024L; // 1 MB
 
   private final TestFaultInjector kvFaultInjector = new TestFaultInjector();
-  private String schemaVersion;
 
   /**
    * A FaultInjector that can be configured to throw an exception on a
@@ -233,7 +231,7 @@ public class TestDiskBalancerTask {
 
     Map<ContainerProtos.ContainerType, Handler> handlers = new HashMap<>();
     handlers.put(ContainerProtos.ContainerType.KeyValueContainer, keyValueHandler);
-    controller = new ContainerController(containerSet, handlers);
+    ContainerController controller = new ContainerController(containerSet, handlers);
     ozoneContainer = mock(OzoneContainer.class);
     when(ozoneContainer.getContainerSet()).thenReturn(containerSet);
     when(ozoneContainer.getVolumeSet()).thenReturn(volumeSet);
@@ -246,7 +244,7 @@ public class TestDiskBalancerTask {
     conf.setFromObject(diskBalancerConfiguration);
     diskBalancerService = new DiskBalancerServiceTestImpl(ozoneContainer,
         100, conf, 1);
-
+    DiskBalancerService.setReplicaDeletionDelayMills(0);
     KeyValueContainer.setInjector(kvFaultInjector);
   }
 
@@ -323,7 +321,7 @@ public class TestDiskBalancerTask {
 
     // verify temp container directory doesn't exist before task execution
     Path tempContainerDir = destVolume.getTmpDir().toPath()
-        .resolve(DiskBalancerService.DISK_BALANCER_DIR).resolve(String.valueOf(CONTAINER_ID));
+        .resolve(DISK_BALANCER_DIR).resolve(String.valueOf(CONTAINER_ID));
     File dir = new File(String.valueOf(tempContainerDir));
     assertFalse(dir.exists(), "Temp container directory should not exist before task starts");
 
@@ -373,7 +371,7 @@ public class TestDiskBalancerTask {
         0L : diskBalancerService.getDeltaSizes().get(sourceVolume);
     String oldContainerPath = container.getContainerData().getContainerPath();
     Path tempDir = destVolume.getTmpDir().toPath()
-        .resolve(DiskBalancerService.DISK_BALANCER_DIR)
+        .resolve(DISK_BALANCER_DIR)
         .resolve(String.valueOf(CONTAINER_ID));
     assertFalse(Files.exists(tempDir), "Temp container directory should not exist");
     Path destDirPath = Paths.get(
@@ -576,6 +574,34 @@ public class TestDiskBalancerTask {
     assertEquals(initialSourceDelta, diskBalancerService.getDeltaSizes().get(sourceVolume));
   }
 
+  @ContainerTestVersionInfo.ContainerTest
+  public void testOldReplicaDelayedDeletion(ContainerTestVersionInfo versionInfo)
+      throws IOException, InterruptedException {
+    setLayoutAndSchemaForTest(versionInfo);
+    long delay = 2000L; // 2 second delay
+    DiskBalancerService.setReplicaDeletionDelayMills(delay);
+
+    Container container = createContainer(CONTAINER_ID, sourceVolume, State.CLOSED);
+    KeyValueContainerData keyValueContainerData = (KeyValueContainerData) container.getContainerData();
+    File oldContainerDir = new File(keyValueContainerData.getContainerPath());
+    assertTrue(oldContainerDir.exists());
+
+    DiskBalancerService.DiskBalancerTask task = getTask();
+    task.call();
+    assertEquals(State.DELETED, container.getContainerState());
+    // Verify that the old container is not deleted immediately
+    assertTrue(oldContainerDir.exists());
+
+    // create another container to trigger the deletion of old replicas
+    createContainer(CONTAINER_ID + 1, sourceVolume, State.CLOSED);
+    task = getTask();
+    // Wait for the delay to pass
+    Thread.sleep(delay);
+    task.call();
+    // Verify that the old container is deleted
+    assertFalse(oldContainerDir.exists());
+  }
+
   private KeyValueContainer createContainer(long containerId, HddsVolume vol, State state)
       throws IOException {
     KeyValueContainerData containerData = new KeyValueContainerData(
@@ -601,7 +627,7 @@ public class TestDiskBalancerTask {
   }
 
   private void setLayoutAndSchemaForTest(ContainerTestVersionInfo versionInfo) {
-    this.schemaVersion = versionInfo.getSchemaVersion();
+    String schemaVersion = versionInfo.getSchemaVersion();
     ContainerTestVersionInfo.setTestSchemaVersion(schemaVersion, conf);
   }
 }

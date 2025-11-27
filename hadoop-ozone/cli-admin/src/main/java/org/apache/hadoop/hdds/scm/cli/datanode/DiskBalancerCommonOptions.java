@@ -17,7 +17,7 @@
 
 package org.apache.hadoop.hdds.scm.cli.datanode;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import picocli.CommandLine;
 
@@ -26,56 +26,31 @@ import picocli.CommandLine;
  */
 public class DiskBalancerCommonOptions {
 
-  @CommandLine.Option(names = {"-a", "--all"},
-      description = "Run commands on all datanodes.")
-  private boolean allHosts;
+  @CommandLine.Mixin
+  private DatanodeParameters datanodeParameters;
 
-  @CommandLine.Option(names = {"-d", "--datanodes"},
-      description = "Run commands on specific datanodes, the content can be " +
-          "a list of hostnames or IPs. " +
-          "Examples: hostname1,hostname2,hostname3 or ip1,ip2,ip3")
-  private List<String> datanodes = new ArrayList<>();
+  @CommandLine.Option(names = {"--in-service-datanodes"},
+      description = "If set, the client will send DiskBalancer requests " +
+          "to all available DataNodes in the HEALTHY and IN_SERVICE operational state.",
+      required = false)
+  private boolean inServiceDatanodes;
 
-  /**
-   * Check the common options of DiskBalancerCommand.
-   * @return if the check passed
-   */
-  public boolean check() {
-    if (datanodes.isEmpty() && !allHosts) {
-      System.out.println("Datanode not specified. Please specify at least " +
-          "one datanode or use \"-a(--all)\" to start diskBalancer " +
-          "on all datanodes");
-      return false;
-    }
-    if (!datanodes.isEmpty() && allHosts) {
-      System.out.println("Invalid option selection. " +
-          "Use either \"-a(--all)\" or \"-d(--datanodes)\".");
-      return false;
-    }
-    return true;
-  }
-
-  public String getHostString() {
-    return isAllHosts() ? "All datanodes" : String.join("\n", getDatanodes());
-  }
-
-  public List<String> getSpecifiedDatanodes() {
-    return getDatanodes().isEmpty() ? null : getDatanodes();
-  }
-
-  public boolean isAllHosts() {
-    return allHosts;
-  }
-
-  public void setAllHosts(boolean allHosts) {
-    this.allHosts = allHosts;
-  }
+  @CommandLine.Option(names = {"--json"},
+      description = "Format output as JSON",
+      defaultValue = "false")
+  private boolean json;
 
   public List<String> getDatanodes() {
-    return datanodes;
+    // Return empty list if datanodeParameters is null
+    // when --in-service-datanodes is used without positional args
+    return datanodeParameters != null ? datanodeParameters.getDatanodes() : Collections.emptyList();
   }
 
-  public void setDatanodes(List<String> datanodes) {
-    this.datanodes = datanodes;
+  public boolean isInServiceDatanodes() {
+    return inServiceDatanodes;
+  }
+
+  public boolean isJson() {
+    return json;
   }
 }
