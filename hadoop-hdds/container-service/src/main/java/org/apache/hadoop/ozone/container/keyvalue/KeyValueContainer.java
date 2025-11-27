@@ -17,6 +17,7 @@
 
 package org.apache.hadoop.ozone.container.keyvalue;
 
+import static java.util.stream.Collectors.toList;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerDataProto.State.CLOSED;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerDataProto.State.CLOSING;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerDataProto.State.DELETED;
@@ -33,18 +34,23 @@ import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Res
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.IO_EXCEPTION;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.UNSUPPORTED_REQUEST;
 import static org.apache.hadoop.ozone.container.common.utils.StorageVolumeUtil.onFailure;
+import static org.apache.hadoop.ozone.container.keyvalue.helpers.ChunkUtils.getFileWriteLock;
+import static org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerLocationUtil.getChunksLocationPath;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -53,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Stream;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileUtil;
@@ -80,11 +87,13 @@ import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.BlockUtils;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerLocationUtil;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerUtil;
+import org.apache.hadoop.ozone.container.ozoneimpl.ContainerScanError;
 import org.apache.hadoop.ozone.container.ozoneimpl.DataScanResult;
 import org.apache.hadoop.ozone.container.ozoneimpl.MetadataScanResult;
 import org.apache.hadoop.ozone.container.replication.ContainerImporter;
 import org.apache.hadoop.ozone.container.upgrade.VersionedDatanodeFeatures;
 import org.apache.hadoop.util.DiskChecker.DiskOutOfSpaceException;
+import org.apache.ratis.util.AutoCloseableLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -191,7 +200,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
               .getContainerMetaDataPath(hddsVolumeDir, idDir, containerID);
           containerData.setMetadataPath(containerMetaDataPath.getPath());
 
-          File chunksPath = KeyValueContainerLocationUtil.getChunksLocationPath(
+          File chunksPath = getChunksLocationPath(
               hddsVolumeDir, idDir, containerID);
 
           // Check if it is new Container.
@@ -275,7 +284,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
     File containerMetaDataPath = KeyValueContainerLocationUtil
         .getContainerMetaDataPath(hddsVolumeDir, clusterId, containerId);
 
-    File chunksPath = KeyValueContainerLocationUtil.getChunksLocationPath(
+    File chunksPath = getChunksLocationPath(
         hddsVolumeDir, clusterId, containerId);
 
     //Set containerData for the KeyValueContainer.
@@ -339,10 +348,29 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
 
   @Override
   public void delete() throws StorageContainerException {
+    List<AutoCloseableLock> chunkLockList = new ArrayList<>();
     try {
-      // Delete the Container from tmp directory.
       File tmpDirectoryPath = KeyValueContainerUtil.getTmpDirectoryPath(
           containerData, containerData.getVolume()).toFile();
+      // acquire block file write lock before delete the file from disk, to avoid read failure due to container
+      // deletion in some circumstances, such as when this container replica is being deleted while a block is being
+      // read, due to unhealthy replica deletion, excessive replica deletion, or replica moved by disk balancer, etc.
+      // when come to this point, the container is in either DELETED state or RECOVERING state.
+      File tmpChunksDir = getChunksLocationPath(tmpDirectoryPath.toString());
+      File chunkDir = new File(containerData.getChunksPath());
+      if (tmpChunksDir.exists()) {
+        // acquire write lock on each file and add to chunkLockList
+        try (Stream<Path> dirEntries = Files.list(tmpChunksDir.toPath())) {
+          for (Path path : dirEntries.collect(toList())) {
+            File file = path.toFile();
+            if (file.isFile()) {
+              // acquire write lock using chunk file path before moving to tmp directory
+              chunkLockList.add(getFileWriteLock(chunkDir.toPath().resolve(file.getName())));
+            }
+          }
+        }
+      }
+      // Delete the Container from tmp directory.
       FileUtils.deleteDirectory(tmpDirectoryPath);
     } catch (StorageContainerException ex) {
       // Disk needs replacement.
@@ -355,6 +383,8 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
       final String errMsg = "Failed to cleanup " + containerData;
       LOG.error(errMsg, ex);
       throw new StorageContainerException(errMsg, ex, CONTAINER_INTERNAL_ERROR);
+    } finally {
+      chunkLockList.stream().forEach(lock -> lock.close());
     }
   }
 
