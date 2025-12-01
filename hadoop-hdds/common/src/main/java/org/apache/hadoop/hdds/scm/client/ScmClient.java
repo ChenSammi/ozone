@@ -17,7 +17,6 @@
 
 package org.apache.hadoop.hdds.scm.client;
 
-import jakarta.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +29,6 @@ import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerDataProto;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
-import org.apache.hadoop.hdds.protocol.proto.HddsProtos.DeletedBlocksTransactionInfo;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.ContainerBalancerStatusInfoResponseProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.DecommissionScmResponseProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.StartContainerBalancerResponseProto;
@@ -414,26 +412,6 @@ public interface ScmClient extends Closeable {
   void transferLeadership(String newLeaderId) throws IOException;
 
   /**
-   * Return the failed transactions of the Deleted blocks. A transaction is
-   * considered to be failed if it has been sent more than MAX_RETRY limit
-   * and its count is reset to -1.
-   *
-   * @param count Maximum num of returned transactions, if {@literal < 0}. return all.
-   * @param startTxId The least transaction id to start with.
-   * @return a list of failed deleted block transactions.
-   * @throws IOException
-   */
-  List<DeletedBlocksTransactionInfo> getFailedDeletedBlockTxn(int count,
-      long startTxId) throws IOException;
-
-  /**
-   * Reset the failed deleted block retry count.
-   * @param txIDs transactionId list to be reset
-   * @throws IOException
-   */
-  int resetDeletedBlockRetryCount(List<Long> txIDs) throws IOException;
-
-  /**
    * Get usage information of datanode by address or uuid.
    *
    * @param address datanode address String
@@ -478,53 +456,4 @@ public interface ScmClient extends Closeable {
    */
   void reconcileContainer(long containerID) throws IOException;
 
-  /**
-   * Get DiskBalancer report.
-   * REPORT shows the current volume density of datanodes.
-   * @param count top datanodes that need balancing
-   * @return List of DatanodeDiskBalancerInfo.
-   * @throws IOException
-   */
-  List<HddsProtos.DatanodeDiskBalancerInfoProto> getDiskBalancerReport(
-      int count) throws IOException;
-
-  /**
-   * Get DiskBalancer status.
-   * STATUS shows the running status of DiskBalancer on datanodes.
-   * @param hosts If hosts is not null, return status of hosts; If hosts is
-   *              null, return status of all datanodes in balancing.
-   * @return List of DatanodeDiskBalancerInfo.
-   * @throws IOException
-   */
-  List<HddsProtos.DatanodeDiskBalancerInfoProto> getDiskBalancerStatus(
-      @Nullable List<String> hosts,
-      @Nullable HddsProtos.DiskBalancerRunningStatus runningStatus)
-      throws IOException;
-
-  /**
-   * Start DiskBalancer.
-   */
-  List<DatanodeAdminError> startDiskBalancer(
-      @Nullable Double threshold,
-      @Nullable Long bandwidthInMB,
-      @Nullable Integer parallelThread,
-      @Nullable Boolean stopAfterDiskEven,
-      @Nullable List<String> hosts) throws IOException;
-
-  /**
-   * Stop DiskBalancer.
-   */
-  List<DatanodeAdminError> stopDiskBalancer(@Nullable List<String> hosts)
-      throws IOException;
-
-
-  /**
-   * Update DiskBalancer Configuration.
-   */
-  List<DatanodeAdminError> updateDiskBalancerConfiguration(
-      @Nullable Double threshold,
-      @Nullable Long bandwidth,
-      @Nullable Integer parallelThread,
-      @Nullable Boolean stopAfterDiskEven,
-      @Nullable List<String> hosts) throws IOException;
 }

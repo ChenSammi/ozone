@@ -22,10 +22,12 @@ import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeOperationalSt
 import static org.apache.hadoop.hdds.scm.node.TestNodeUtil.getDNHostAndPort;
 import static org.apache.hadoop.hdds.scm.node.TestNodeUtil.waitForDnToReachOpState;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -33,7 +35,14 @@ import java.util.concurrent.TimeoutException;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
+import org.apache.hadoop.hdds.protocol.DatanodeDetails.Port;
+import org.apache.hadoop.hdds.protocol.DiskBalancerProtocol;
+import org.apache.hadoop.hdds.protocol.proto.DiskBalancerProtocolProtos.DatanodeDiskBalancerInfoType;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos.DatanodeDiskBalancerInfoProto;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos.DiskBalancerConfigurationProto;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos.DiskBalancerRunningStatus;
+import org.apache.hadoop.hdds.protocolPB.DiskBalancerProtocolClientSideTranslatorPB;
 import org.apache.hadoop.hdds.scm.HddsTestUtils;
 import org.apache.hadoop.hdds.scm.PlacementPolicy;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
@@ -41,21 +50,18 @@ import org.apache.hadoop.hdds.scm.cli.ContainerOperationClient;
 import org.apache.hadoop.hdds.scm.client.ScmClient;
 import org.apache.hadoop.hdds.scm.container.placement.algorithms.SCMContainerPlacementCapacity;
 import org.apache.hadoop.hdds.scm.node.DatanodeInfo;
-import org.apache.hadoop.hdds.scm.node.DiskBalancerManager;
 import org.apache.hadoop.hdds.scm.node.NodeManager;
 import org.apache.hadoop.ozone.ClientVersion;
-import org.apache.hadoop.ozone.HddsDatanodeService;
 import org.apache.hadoop.ozone.MiniOzoneCluster;
-import org.apache.hadoop.ozone.container.diskbalancer.DiskBalancerService;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.ozone.test.GenericTestUtils;
-import org.apache.ozone.test.GenericTestUtils.LogCapturer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 /**
- * This class tests disk balancer operations.
+ * This class tests disk balancer operations using direct client-to-DN communication.
  */
 @Timeout(300)
 public class TestDiskBalancer {
@@ -63,7 +69,6 @@ public class TestDiskBalancer {
   private static ScmClient storageClient;
   private static MiniOzoneCluster cluster;
   private static OzoneConfiguration ozoneConf;
-  private static DiskBalancerManager diskBalancerManager;
 
   @BeforeAll
   public static void setup() throws Exception {
@@ -75,8 +80,6 @@ public class TestDiskBalancer {
     cluster = MiniOzoneCluster.newBuilder(ozoneConf).setNumDatanodes(3).build();
     storageClient = new ContainerOperationClient(ozoneConf);
     cluster.waitForClusterToBeReady();
-    diskBalancerManager = cluster.getStorageContainerManager()
-        .getDiskBalancerManager();
 
     for (DatanodeDetails dn: cluster.getStorageContainerManager()
         .getScmNodeManager().getAllNodes()) {
@@ -92,99 +95,171 @@ public class TestDiskBalancer {
     }
   }
 
+  /**
+   * Helper method to create a DiskBalancerProtocol proxy for a datanode.
+   */
+  private DiskBalancerProtocol getDiskBalancerProxy(DatanodeDetails dn) throws IOException {
+    InetSocketAddress nodeAddr = new java.net.InetSocketAddress(
+        dn.getIpAddress(), dn.getPort(Port.Name.CLIENT_RPC).getValue());
+    UserGroupInformation user = UserGroupInformation.getCurrentUser();
+    return new DiskBalancerProtocolClientSideTranslatorPB(nodeAddr, user, ozoneConf);
+  }
+
   @Test
   public void testDatanodeDiskBalancerReport() throws IOException {
-    List<HddsProtos.DatanodeDiskBalancerInfoProto> reportProtoList =
-        storageClient.getDiskBalancerReport(2);
+    // Query DiskBalancer report from multiple DNs using direct client-to-DN RPC
+    List<DatanodeDetails> datanodes = new ArrayList<>(
+        cluster.getStorageContainerManager().getScmNodeManager().getAllNodes());
+    List<DatanodeDiskBalancerInfoProto> reportProtoList = new ArrayList<>();
 
-    assertEquals(2, reportProtoList.size());
-    assertTrue(
-        reportProtoList.get(0).getCurrentVolumeDensitySum()
-        >= reportProtoList.get(1).getCurrentVolumeDensitySum());
+    for (DatanodeDetails dn : datanodes) {
+      try (DiskBalancerProtocol proxy = getDiskBalancerProxy(dn)) {
+        DatanodeDiskBalancerInfoProto report = proxy.getDiskBalancerInfo(
+            DatanodeDiskBalancerInfoType.REPORT, ClientVersion.CURRENT_VERSION);
+        assertNotNull(report);
+        assertTrue(report.hasCurrentVolumeDensitySum());
+        reportProtoList.add(report);
+      }
+    }
+
+    assertEquals(datanodes.size(), reportProtoList.size());
+    
+    // Verify that we got reports from all datanodes with volume density information
+    // Note: The sorting by volume density happens in the CLI display logic,
+    // not in the individual datanode responses. Each datanode returns its own report.
+    for (DatanodeDiskBalancerInfoProto report : reportProtoList) {
+      assertTrue(report.hasCurrentVolumeDensitySum());
+      assertNotNull(report.getNode());
+    }
   }
 
   @Test
   public void testDiskBalancerStopAfterEven() throws IOException,
       InterruptedException, TimeoutException {
-    //capture LOG for DiskBalancerManager and DiskBalancerService
-    LogCapturer logCapturer = LogCapturer.captureLogs(DiskBalancerManager.LOG);
-    LogCapturer dnLogCapturer = LogCapturer.captureLogs(DiskBalancerService.class);
+    // Start DiskBalancer on a DN using direct client-to-DN RPC with stopAfterDiskEven=true
+    DatanodeDetails dn = cluster.getStorageContainerManager()
+        .getScmNodeManager().getAllNodes().get(0);
 
-    // Start DiskBalancer on all datanodes
-    diskBalancerManager.startDiskBalancer(
-        10.0, // threshold
-        10L,  // bandwidth in MB
-        5,    // parallel threads
-        true, // stopAfterDiskEven
-        null); // apply to all datanodes
+    DiskBalancerConfigurationProto configProto = DiskBalancerConfigurationProto.newBuilder()
+        .setThreshold(10.0)
+        .setDiskBandwidthInMB(10L)
+        .setParallelThread(5)
+        .setStopAfterDiskEven(true)
+        .build();
 
-    // verify logs for all DNs has started
-    String logs = logCapturer.getOutput();
-    for (HddsDatanodeService dn : cluster.getHddsDatanodes()) {
-      String uuid = dn.getDatanodeDetails().getUuidString();
-      assertTrue(logs.contains("Sending diskBalancerCommand: opType=START") &&
-              logs.contains(uuid));
+    try (DiskBalancerProtocol proxy = getDiskBalancerProxy(dn)) {
+      proxy.startDiskBalancer(configProto);
+
+      // Query status to verify it's RUNNING
+      DatanodeDiskBalancerInfoProto status = proxy.getDiskBalancerInfo(
+          DatanodeDiskBalancerInfoType.STATUS, ClientVersion.CURRENT_VERSION);
+      assertEquals(DiskBalancerRunningStatus.RUNNING, status.getRunningStatus());
+
+      // Wait for some time and query status to verify the RUNNING status changes to STOPPED
+      // This happens when disks become even
+      GenericTestUtils.waitFor(
+          () -> {
+            try {
+              DatanodeDiskBalancerInfoProto currentStatus = proxy.getDiskBalancerInfo(
+                  DatanodeDiskBalancerInfoType.STATUS, ClientVersion.CURRENT_VERSION);
+              return currentStatus.getRunningStatus() == DiskBalancerRunningStatus.STOPPED;
+            } catch (IOException e) {
+              return false;
+            }
+          },
+          500, 30000); // Check every 500ms, timeout after 30s
     }
-
-    // Wait up to 5 seconds for all DNs to log the stop message
-    GenericTestUtils.waitFor(() -> {
-      String dnLogs = dnLogCapturer.getOutput();
-      long count = Arrays.stream(dnLogs.split("\n"))
-          .filter(line -> line.contains("Disk balancer is stopped due to disk even as" +
-              " the property StopAfterDiskEven is set to true"))
-          .count();
-      return count >= cluster.getHddsDatanodes().size();
-    }, 100, 10000); // check every 100ms, timeout after 10s
   }
 
   @Test
   public void testDatanodeDiskBalancerStatus() throws IOException, InterruptedException, TimeoutException {
-    List<HddsDatanodeService> dns = cluster.getHddsDatanodes();
-    DatanodeDetails toDecommission = dns.get(0).getDatanodeDetails();
+    NodeManager nm = cluster.getStorageContainerManager().getScmNodeManager();
+    List<DatanodeDetails> allDatanodes = new ArrayList<>(nm.getAllNodes());
+    DatanodeDetails toDecommission = allDatanodes.get(0);
 
-    diskBalancerManager.startDiskBalancer(
-        10.0, // threshold
-        10L,  // bandwidth in MB
-        5,    // parallel threads
-        true, // stopAfterDiskEven
-        null);
+    // Start DiskBalancer on all DNs using direct client-to-DN RPC
+    DiskBalancerConfigurationProto configProto = DiskBalancerConfigurationProto.newBuilder()
+        .setThreshold(10.0)
+        .setDiskBandwidthInMB(10L)
+        .setParallelThread(5)
+        .setStopAfterDiskEven(false)
+        .build();
 
-    //all DNs IN_SERVICE, so disk balancer status for all should be present
-    List<HddsProtos.DatanodeDiskBalancerInfoProto> statusProtoList =
-        diskBalancerManager.getDiskBalancerStatus(null,
-            null,
-            ClientVersion.CURRENT_VERSION);
+    for (DatanodeDetails dn : allDatanodes) {
+      try (DiskBalancerProtocol proxy = getDiskBalancerProxy(dn)) {
+        proxy.startDiskBalancer(configProto);
+      }
+    }
+
+    // Query status from all DNs and verify all show RUNNING status
+    List<DatanodeDiskBalancerInfoProto> statusProtoList = new ArrayList<>();
+    for (DatanodeDetails dn : allDatanodes) {
+      try (DiskBalancerProtocol proxy = getDiskBalancerProxy(dn)) {
+        DatanodeDiskBalancerInfoProto status = proxy.getDiskBalancerInfo(
+            DatanodeDiskBalancerInfoType.STATUS, ClientVersion.CURRENT_VERSION);
+        assertEquals(DiskBalancerRunningStatus.RUNNING, status.getRunningStatus());
+        statusProtoList.add(status);
+      }
+    }
     assertEquals(3, statusProtoList.size());
 
-    NodeManager nm = cluster.getStorageContainerManager().getScmNodeManager();
-
-    // Decommission the first DN
-    storageClient.decommissionNodes(Arrays.asList(
-        getDNHostAndPort(toDecommission)), false);
+    // Decommission one DN
+    storageClient.decommissionNodes(
+        Collections.singletonList(getDNHostAndPort(toDecommission)), false);
     waitForDnToReachOpState(nm, toDecommission, DECOMMISSIONING);
 
-    //one DN is in DECOMMISSIONING state, so disk balancer status for it should not be present
-    statusProtoList = diskBalancerManager.getDiskBalancerStatus(null,
-        null,
-        ClientVersion.CURRENT_VERSION);
+    // Verify that the decommissioned DN's DiskBalancer status changed to PAUSED
+    try (DiskBalancerProtocol proxy = getDiskBalancerProxy(toDecommission)) {
+      GenericTestUtils.waitFor(
+          () -> {
+            try {
+              DatanodeDiskBalancerInfoProto status = proxy.getDiskBalancerInfo(
+                  DatanodeDiskBalancerInfoType.STATUS, ClientVersion.CURRENT_VERSION);
+              return status.getRunningStatus() == DiskBalancerRunningStatus.PAUSED;
+            } catch (IOException e) {
+              return false;
+            }
+          },
+          500, 30000); // Check every 500ms, timeout after 30s
+
+      DatanodeDiskBalancerInfoProto pausedStatus = proxy.getDiskBalancerInfo(
+          DatanodeDiskBalancerInfoType.STATUS, ClientVersion.CURRENT_VERSION);
+      assertEquals(DiskBalancerRunningStatus.PAUSED, pausedStatus.getRunningStatus(),
+          "DiskBalancer status should be PAUSED after decommissioning");
+    }
+
+    // Query status from remaining IN_SERVICE DNs and verify they still show RUNNING
+    List<DatanodeDetails> inServiceDatanodes = nm.getNodes(IN_SERVICE, HddsProtos.NodeState.HEALTHY);
+    statusProtoList.clear();
+    for (DatanodeDetails dn : inServiceDatanodes) {
+      try (DiskBalancerProtocol proxy = getDiskBalancerProxy(dn)) {
+        DatanodeDiskBalancerInfoProto status = proxy.getDiskBalancerInfo(
+            DatanodeDiskBalancerInfoType.STATUS, ClientVersion.CURRENT_VERSION);
+        assertEquals(DiskBalancerRunningStatus.RUNNING, status.getRunningStatus());
+        statusProtoList.add(status);
+      }
+    }
     assertEquals(2, statusProtoList.size());
 
-    // Check status for the decommissioned DN should not be present
-    statusProtoList = diskBalancerManager.getDiskBalancerStatus(
-        Collections.singletonList(getDNHostAndPort(toDecommission)),
-        null,
-        ClientVersion.CURRENT_VERSION);
-    assertEquals(0, statusProtoList.size());
-
-    storageClient.recommissionNodes(Arrays.asList(
-        getDNHostAndPort(toDecommission)));
+    // Recommission the DN
+    storageClient.recommissionNodes(
+        Collections.singletonList(getDNHostAndPort(toDecommission)));
     waitForDnToReachOpState(nm, toDecommission, IN_SERVICE);
 
-    // Check status for the recommissioned DN should now be present
-    statusProtoList = diskBalancerManager.getDiskBalancerStatus(
-        Collections.singletonList(getDNHostAndPort(toDecommission)),
-        null,
-        ClientVersion.CURRENT_VERSION);
-    assertEquals(1, statusProtoList.size());
+    // Wait for DiskBalancerService to resume from PAUSED to RUNNING after recommissioning
+    // The service automatically pauses when decommissioned and resumes when recommissioned
+    try (DiskBalancerProtocol proxy = getDiskBalancerProxy(toDecommission)) {
+      GenericTestUtils.waitFor(
+          () -> {
+            try {
+              DatanodeDiskBalancerInfoProto status = proxy.getDiskBalancerInfo(
+                  DatanodeDiskBalancerInfoType.STATUS, ClientVersion.CURRENT_VERSION);
+              return status.getRunningStatus() == DiskBalancerRunningStatus.RUNNING;
+            } catch (IOException e) {
+              return false;
+            }
+          },
+          500, 30000); // Check every 500ms, timeout after 30s
+    }
   }
 }

@@ -85,12 +85,9 @@ public class TestDeadNodeHandler {
   private DeadNodeHandler deadNodeHandler;
   private HealthyReadOnlyNodeHandler healthyReadOnlyNodeHandler;
   private EventPublisher publisher;
-  private EventQueue eventQueue;
   @TempDir
   private File storageDir;
-  private SCMContext scmContext;
   private DeletedBlockLog deletedBlockLog;
-  private DiskBalancerManager diskBalancerManager;
 
   @BeforeEach
   public void setup() throws IOException, AuthenticationException {
@@ -101,13 +98,13 @@ public class TestDeadNodeHandler {
     conf.setStorageSize(OZONE_DATANODE_RATIS_VOLUME_FREE_SPACE_MIN,
         10, StorageUnit.MB);
     conf.set(HddsConfigKeys.OZONE_METADATA_DIRS, storageDir.getPath());
-    eventQueue = new EventQueue();
+    EventQueue eventQueue = new EventQueue();
     scm = HddsTestUtils.getScm(conf);
     nodeManager = (SCMNodeManager) scm.getScmNodeManager();
-    scmContext = new SCMContext.Builder()
-        .setSafeModeStatus(SafeModeStatus.PRE_CHECKS_PASSED)
-        .setLeader(true)
-        .setSCM(scm).build();
+    SCMContext scmContext = new SCMContext.Builder()
+                                .setSafeModeStatus(SafeModeStatus.PRE_CHECKS_PASSED)
+                                .setLeader(true)
+                                .setSCM(scm).build();
     pipelineManager =
         (PipelineManagerImpl)scm.getPipelineManager();
     pipelineManager.setScmContext(scmContext);
@@ -119,10 +116,8 @@ public class TestDeadNodeHandler {
         mockRatisProvider);
     containerManager = scm.getContainerManager();
     deletedBlockLog = mock(DeletedBlockLog.class);
-    diskBalancerManager = new DiskBalancerManager(conf, new EventQueue(),
-        SCMContext.emptyContext(), null);
     deadNodeHandler = new DeadNodeHandler(nodeManager,
-        mock(PipelineManager.class), containerManager, diskBalancerManager, deletedBlockLog);
+        mock(PipelineManager.class), containerManager, deletedBlockLog);
     healthyReadOnlyNodeHandler =
         new HealthyReadOnlyNodeHandler(nodeManager,
             pipelineManager);
@@ -224,11 +219,6 @@ public class TestDeadNodeHandler {
     HddsTestUtils.quasiCloseContainer(containerManager,
         container3.containerID());
 
-    //starting diskBalancer on all Datanodes
-    diskBalancerManager.addRunningDatanode(datanode1);
-    diskBalancerManager.addRunningDatanode(datanode2);
-    diskBalancerManager.addRunningDatanode(datanode3);
-
     // First set the node to IN_MAINTENANCE and ensure the container replicas
     // are not removed on the dead event
     datanode1 = nodeManager.getNode(datanode1.getID());
@@ -248,15 +238,6 @@ public class TestDeadNodeHandler {
 
     verify(deletedBlockLog, times(0))
         .onDatanodeDead(datanode1.getID());
-
-    // Verify DiskBalancer status is marked UNKNOWN for the dead datanode
-    assertEquals(HddsProtos.DiskBalancerRunningStatus.UNKNOWN,
-        diskBalancerManager.getStatus(datanode1).getRunningStatus());
-    // Verify DiskBalancer status remains unchanged for other datanodes
-    assertEquals(HddsProtos.DiskBalancerRunningStatus.RUNNING,
-        diskBalancerManager.getStatus(datanode2).getRunningStatus());
-    assertEquals(HddsProtos.DiskBalancerRunningStatus.RUNNING,
-        diskBalancerManager.getStatus(datanode3).getRunningStatus());
 
     Set<ContainerReplica> container1Replicas = containerManager
         .getContainerReplicas(ContainerID.valueOf(container1.getContainerID()));

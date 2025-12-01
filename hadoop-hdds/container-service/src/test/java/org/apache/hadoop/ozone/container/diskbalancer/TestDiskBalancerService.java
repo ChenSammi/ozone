@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableList;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -39,6 +40,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos.DiskBalancerRunningStatus;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.utils.BackgroundTaskQueue;
 import org.apache.hadoop.ozone.container.checksum.ContainerChecksumTreeManager;
@@ -49,7 +51,6 @@ import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
-import org.apache.hadoop.ozone.container.diskbalancer.DiskBalancerService.DiskBalancerOperationalState;
 import org.apache.hadoop.ozone.container.diskbalancer.policy.ContainerChoosingPolicy;
 import org.apache.hadoop.ozone.container.diskbalancer.policy.DefaultContainerChoosingPolicy;
 import org.apache.hadoop.ozone.container.diskbalancer.policy.DefaultVolumeChoosingPolicy;
@@ -83,7 +84,6 @@ public class TestDiskBalancerService {
   private String datanodeUuid;
   private OzoneConfiguration conf = new OzoneConfiguration();
 
-  private String schemaVersion;
   private MutableVolumeSet volumeSet;
 
   @BeforeEach
@@ -130,7 +130,7 @@ public class TestDiskBalancerService {
         getDiskBalancerService(containerSet, conf, keyValueHandler, null, 1);
 
     // Set a low bandwidth to delay job
-    DiskBalancerInfo initialInfo = new DiskBalancerInfo(DiskBalancerOperationalState.RUNNING, 10.0d, 1L, 5,
+    DiskBalancerInfo initialInfo = new DiskBalancerInfo(DiskBalancerRunningStatus.RUNNING, 10.0d, 1L, 5,
         true, DiskBalancerVersion.DEFAULT_VERSION);
     svc.refresh(initialInfo);
 
@@ -142,7 +142,7 @@ public class TestDiskBalancerService {
     assertEquals(5, svc.getDiskBalancerInfo().getParallelThread());
     assertTrue(svc.getDiskBalancerInfo().isStopAfterDiskEven());
 
-    DiskBalancerInfo newInfo = new DiskBalancerInfo(DiskBalancerOperationalState.STOPPED, 20.0d, 5L, 10, false);
+    DiskBalancerInfo newInfo = new DiskBalancerInfo(DiskBalancerRunningStatus.STOPPED, 20.0d, 5L, 10, false);
     svc.refresh(newInfo);
 
     assertFalse(svc.getDiskBalancerInfo().isShouldRun());
@@ -252,8 +252,10 @@ public class TestDiskBalancerService {
     long expectedBytesToMove = (long) Math.ceil(
         (totalCapacity * expectedBytesToMovePercent) / 100.0 * totalOverUtilisedVolumes);
 
+    ImmutableList<HddsVolume> immutableVolumes = DiskBalancerVolumeCalculation.getImmutableVolumeSet(volumeSet);
+
     // data precision loss due to double data involved in calculation
-    assertTrue(Math.abs(expectedBytesToMove - svc.calculateBytesToMove(volumeSet)) <= 1);
+    assertTrue(Math.abs(expectedBytesToMove - svc.calculateBytesToMove(immutableVolumes)) <= 1);
   }
 
   @Test
@@ -272,7 +274,7 @@ public class TestDiskBalancerService {
 
     // Set operational state to RUNNING
     DiskBalancerInfo info = new DiskBalancerInfo(
-        DiskBalancerOperationalState.RUNNING, 10.0d, 100L, parallelThread,
+        DiskBalancerRunningStatus.RUNNING, 10.0d, 100L, parallelThread,
         false, DiskBalancerVersion.DEFAULT_VERSION);
     svc.refresh(info);
 
@@ -291,7 +293,7 @@ public class TestDiskBalancerService {
     when(containerData.getBytesUsed()).thenReturn(100L);
 
     when(volumePolicy.chooseVolume(any(), anyDouble(), any(), anyLong())).thenReturn(Pair.of(source, dest));
-    when(containerPolicy.chooseContainer(any(), any(), any())).thenReturn(containerData);
+    when(containerPolicy.chooseContainer(any(), any(), any(), any(), any(), any(), any())).thenReturn(containerData);
 
     // Test when no tasks are in progress, it should schedule up to the limit
     BackgroundTaskQueue queue = svc.getTasks();
@@ -319,7 +321,7 @@ public class TestDiskBalancerService {
   }
 
   private void setLayoutAndSchemaForTest(ContainerTestVersionInfo versionInfo) {
-    this.schemaVersion = versionInfo.getSchemaVersion();
+    String schemaVersion = versionInfo.getSchemaVersion();
     ContainerTestVersionInfo.setTestSchemaVersion(schemaVersion, conf);
   }
 }

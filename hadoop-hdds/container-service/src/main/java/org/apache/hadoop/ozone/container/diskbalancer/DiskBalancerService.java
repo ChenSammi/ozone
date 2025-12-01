@@ -21,6 +21,7 @@ import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Res
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -31,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -38,14 +40,14 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.StorageUnit;
+import org.apache.hadoop.hdds.fs.SpaceUsageSource;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
-import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DiskBalancerReportProto;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos.DiskBalancerRunningStatus;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
-import org.apache.hadoop.hdds.scm.storage.DiskBalancerConfiguration;
 import org.apache.hadoop.hdds.server.ServerUtils;
 import org.apache.hadoop.hdds.utils.BackgroundService;
 import org.apache.hadoop.hdds.utils.BackgroundTask;
@@ -84,6 +86,7 @@ public class DiskBalancerService extends BackgroundService {
       LoggerFactory.getLogger(DiskBalancerService.class);
 
   public static final String DISK_BALANCER_DIR = "diskBalancer";
+  private static long replicaDeletionDelayMills = 60 * 60 * 1000L; // 60 minutes
 
   private OzoneContainer ozoneContainer;
   private final ConfigurationSource conf;
@@ -94,15 +97,16 @@ public class DiskBalancerService extends BackgroundService {
   private boolean stopAfterDiskEven;
   private DiskBalancerVersion version;
 
-  // State field using the new enum
-  private volatile DiskBalancerOperationalState operationalState =
-      DiskBalancerOperationalState.STOPPED;
+  // State field using proto enum
+  private volatile DiskBalancerRunningStatus operationalState =
+      DiskBalancerRunningStatus.STOPPED;
 
   private AtomicLong totalBalancedBytes = new AtomicLong(0L);
   private AtomicLong balancedBytesInLastWindow = new AtomicLong(0L);
   private AtomicLong nextAvailableTime = new AtomicLong(Time.monotonicNow());
 
   private Set<ContainerID> inProgressContainers;
+  private ConcurrentSkipListMap<Long, Container> pendingDeletionContainers = new ConcurrentSkipListMap();
   private static FaultInjector injector;
 
   /**
@@ -122,33 +126,7 @@ public class DiskBalancerService extends BackgroundService {
   private final File diskBalancerInfoFile;
 
   private DiskBalancerServiceMetrics metrics;
-  private long bytesToMove;
   private long containerDefaultSize;
-
-  /**
-   * Defines the operational states of the DiskBalancerService.
-   */
-  public enum DiskBalancerOperationalState {
-    /**
-     * DiskBalancer is stopped and will not run unless explicitly started.
-     * This is the initial state, can be set by admin STOP commands,
-     * or if the balancer stops itself after disks are even.
-     */
-    STOPPED,
-
-    /**
-     * DiskBalancer is running normally.
-     * The service is actively performing disk balancing operations.
-     */
-    RUNNING,
-
-    /**
-     * DiskBalancer was running but is temporarily paused due to node state changes
-     * (e.g., node entering maintenance or decommissioning).
-     * When the node returns to IN_SERVICE, it can resume to RUNNING state.
-     */
-    PAUSED_BY_NODE_STATE
-  }
 
   public DiskBalancerService(OzoneContainer ozoneContainer,
       long serviceCheckInterval, long serviceCheckTimeout, TimeUnit timeUnit,
@@ -264,7 +242,7 @@ public class DiskBalancerService extends BackgroundService {
    * @param diskBalancerInfo The DiskBalancerInfo containing shouldRun and paused flags.
    */
   private void updateOperationalStateFromInfo(DiskBalancerInfo diskBalancerInfo) {
-    DiskBalancerOperationalState newOperationalState = diskBalancerInfo.getOperationalState();
+    DiskBalancerRunningStatus newOperationalState = diskBalancerInfo.getOperationalState();
 
     if (this.operationalState != newOperationalState) {
       LOG.info("DiskBalancer operational state changing from {} to {} " +
@@ -358,33 +336,20 @@ public class DiskBalancerService extends BackgroundService {
     this.version = version;
   }
 
-  public DiskBalancerReportProto getDiskBalancerReportProto() {
-    DiskBalancerReportProto.Builder builder =
-        DiskBalancerReportProto.newBuilder();
-    return builder.setIsRunning(this.operationalState == DiskBalancerOperationalState.RUNNING)
-        .setBalancedBytes(totalBalancedBytes.get())
-        .setDiskBalancerConf(
-            HddsProtos.DiskBalancerConfigurationProto.newBuilder()
-                .setThreshold(threshold)
-                .setDiskBandwidthInMB(bandwidthInMB)
-                .setParallelThread(parallelThread)
-                .setStopAfterDiskEven(stopAfterDiskEven)
-                .build())
-        .build();
-  }
-
   @Override
   public BackgroundTaskQueue getTasks() {
     BackgroundTaskQueue queue = new BackgroundTaskQueue();
 
-    if (this.operationalState == DiskBalancerOperationalState.STOPPED ||
-        this.operationalState == DiskBalancerOperationalState.PAUSED_BY_NODE_STATE) {
+    if (this.operationalState == DiskBalancerRunningStatus.STOPPED ||
+        this.operationalState == DiskBalancerRunningStatus.PAUSED) {
+      cleanupPendingDeletionContainers();
       return queue;
     }
     metrics.incrRunningLoopCount();
 
     if (shouldDelay()) {
       metrics.incrIdleLoopExceedsBandwidthCount();
+      cleanupPendingDeletionContainers();
       return queue;
     }
 
@@ -403,7 +368,8 @@ public class DiskBalancerService extends BackgroundService {
       }
       HddsVolume sourceVolume = pair.getLeft(), destVolume = pair.getRight();
       ContainerData toBalanceContainer = containerChoosingPolicy
-          .chooseContainer(ozoneContainer, sourceVolume, inProgressContainers);
+          .chooseContainer(ozoneContainer, sourceVolume, destVolume,
+              inProgressContainers, threshold, volumeSet, deltaSizes);
       if (toBalanceContainer != null) {
         DiskBalancerTask task = new DiskBalancerTask(toBalanceContainer, sourceVolume,
             destVolume);
@@ -417,12 +383,11 @@ public class DiskBalancerService extends BackgroundService {
       }
     }
 
-    if (queue.isEmpty()) {
-      bytesToMove = 0;
+    if (queue.isEmpty() && inProgressContainers.isEmpty()) {
       if (stopAfterDiskEven) {
         LOG.info("Disk balancer is stopped due to disk even as" +
             " the property StopAfterDiskEven is set to true.");
-        this.operationalState = DiskBalancerOperationalState.STOPPED;
+        this.operationalState = DiskBalancerRunningStatus.STOPPED;
         try {
           // Persist the updated shouldRun status into the YAML file
           writeDiskBalancerInfoTo(getDiskBalancerInfo(), diskBalancerInfoFile);
@@ -431,8 +396,7 @@ public class DiskBalancerService extends BackgroundService {
         }
       }
       metrics.incrIdleLoopNoAvailableVolumePairCount();
-    } else {
-      bytesToMove = calculateBytesToMove(volumeSet);
+      cleanupPendingDeletionContainers();
     }
 
     return queue;
@@ -596,20 +560,15 @@ public class DiskBalancerService extends BackgroundService {
           container.readUnlock();
         }
         if (moveSucceeded) {
-          // Remove the old container from the KeyValueContainerUtil.
-          try {
-            KeyValueContainerUtil.removeContainer(
-                (KeyValueContainerData) container.getContainerData(), conf);
-            container.delete();
-            container.getContainerData().getVolume().decrementUsedSpace(containerSize);
-          } catch (IOException ex) {
-            LOG.warn("Failed to move or delete old container {} after it's marked as DELETED. " +
-                    "It will be handled by background scanners.", containerId, ex);
-          }
+          // Add current old container to pendingDeletionContainers.
+          pendingDeletionContainers.put(System.currentTimeMillis() + replicaDeletionDelayMills, container);
           ContainerLogger.logMoveSuccess(containerId, sourceVolume,
               destVolume, containerSize, Time.monotonicNow() - startTime);
         }
         postCall(moveSucceeded, startTime);
+
+        // pick one expired container from pendingDeletionContainers to delete
+        tryCleanupOnePendingDeletionContainer();
       }
       return BackgroundTaskResult.EmptyTaskResult.newResult();
     }
@@ -635,44 +594,96 @@ public class DiskBalancerService extends BackgroundService {
     }
   }
 
-  public DiskBalancerInfo getDiskBalancerInfo() {
-    return new DiskBalancerInfo(operationalState, threshold, bandwidthInMB,
-        parallelThread, stopAfterDiskEven, version, metrics.getSuccessCount(),
-        metrics.getFailureCount(), bytesToMove, metrics.getSuccessBytes());
+  private void deleteContainer(Container container) {
+    try {
+      KeyValueContainerData containerData = (KeyValueContainerData) container.getContainerData();
+      KeyValueContainerUtil.removeContainer(containerData, conf);
+      container.delete();
+      container.getContainerData().getVolume().decrementUsedSpace(containerData.getBytesUsed());
+      LOG.info("Deleted expired container {} after delay {} ms.",
+          containerData.getContainerID(), replicaDeletionDelayMills);
+    } catch (IOException ex) {
+      LOG.warn("Failed to delete old container {} after it's marked as DELETED. " +
+          "It will be handled by background scanners.", container.getContainerData().getContainerID(), ex);
+    }
   }
 
-  public long calculateBytesToMove(MutableVolumeSet inputVolumeSet) {
-    long bytesPendingToMove = 0;
-    long totalFreeSpace = 0;
-    long totalCapacity = 0;
+  private void cleanupPendingDeletionContainers() {
+    // delete all pending deletion containers before stop the service
+    boolean ret;
+    do {
+      ret = tryCleanupOnePendingDeletionContainer();
+    } while (ret);
+  }
 
-    for (HddsVolume volume : StorageVolumeUtil.getHddsVolumesList(inputVolumeSet.getVolumesList())) {
-      totalFreeSpace += volume.getCurrentUsage().getAvailable();
-      totalCapacity += volume.getCurrentUsage().getCapacity();
+  private boolean tryCleanupOnePendingDeletionContainer() {
+    Map.Entry<Long, Container> entry = pendingDeletionContainers.pollFirstEntry();
+    if (entry != null) {
+      if (entry.getKey() <= System.currentTimeMillis()) {
+        // entry container is expired
+        deleteContainer(entry.getValue());
+        return true;
+      } else {
+        // put back the container
+        pendingDeletionContainers.put(entry.getKey(), entry.getValue());
+      }
+    }
+    return false;
+  }
+
+  public DiskBalancerInfo getDiskBalancerInfo() {
+    ImmutableList<HddsVolume> immutableVolumeSet = DiskBalancerVolumeCalculation.getImmutableVolumeSet(volumeSet);
+
+    // Calculate volumeDataDensity
+    double volumeDatadensity = 0.0;
+    volumeDatadensity = DiskBalancerVolumeCalculation.calculateVolumeDataDensity(immutableVolumeSet, deltaSizes);
+
+    long bytesToMove = 0;
+    if (this.operationalState == DiskBalancerRunningStatus.RUNNING) {
+      // this calculates live changes in bytesToMove
+      // calculate bytes to move if the balancer is in a running state, else 0.
+      bytesToMove = calculateBytesToMove(immutableVolumeSet);
     }
 
-    if (totalCapacity == 0) {
+    return new DiskBalancerInfo(operationalState, threshold, bandwidthInMB,
+        parallelThread, stopAfterDiskEven, version, metrics.getSuccessCount(),
+        metrics.getFailureCount(), bytesToMove, metrics.getSuccessBytes(), volumeDatadensity);
+  }
+
+  public long calculateBytesToMove(ImmutableList<HddsVolume> inputVolumeSet) {
+    // If there are no available volumes or only one volume, return 0 bytes to move
+    if (inputVolumeSet.isEmpty() || inputVolumeSet.size() < 2) {
       return 0;
     }
 
-    double datanodeUtilization = ((double) (totalCapacity - totalFreeSpace)) / totalCapacity;
+    // Calculate ideal usage
+    double idealUsage = DiskBalancerVolumeCalculation.getIdealUsage(inputVolumeSet, deltaSizes);
+    double normalizedThreshold = threshold / 100.0;
 
-    double thresholdFraction = threshold / 100.0;
-    double upperLimit = datanodeUtilization + thresholdFraction;
+    long totalBytesToMove = 0;
 
     // Calculate excess data in overused volumes
-    for (HddsVolume volume : StorageVolumeUtil.getHddsVolumesList(inputVolumeSet.getVolumesList())) {
-      long freeSpace = volume.getCurrentUsage().getAvailable();
-      long capacity = volume.getCurrentUsage().getCapacity();
-      double volumeUtilization = ((double) (capacity - freeSpace)) / capacity;
+    for (HddsVolume volume : inputVolumeSet) {
+      SpaceUsageSource usage = volume.getCurrentUsage();
 
-      // Consider only volumes exceeding the upper threshold
-      if (volumeUtilization > upperLimit) {
-        long excessData = (capacity - freeSpace) - (long) (upperLimit * capacity);
-        bytesPendingToMove += excessData;
+      if (usage.getCapacity() == 0) {
+        continue;
+      }
+
+      long deltaSize = deltaSizes.getOrDefault(volume, 0L);
+      double currentUsage = (double)((usage.getCapacity() - usage.getAvailable())
+          + deltaSize + volume.getCommittedBytes()) / usage.getCapacity();
+
+      double volumeUtilisation = currentUsage - idealUsage;
+
+      // Only consider volumes that exceed the threshold (source volumes)
+      if (volumeUtilisation >= normalizedThreshold) {
+        // Calculate excess bytes that need to be moved from this volume
+        long excessBytes = (long) ((volumeUtilisation - normalizedThreshold) * usage.getCapacity());
+        totalBytesToMove += Math.max(0, excessBytes);
       }
     }
-    return bytesPendingToMove;
+    return totalBytesToMove;
   }
 
   private Path getDiskBalancerTmpDir(HddsVolume hddsVolume) {
@@ -721,19 +732,19 @@ public class DiskBalancerService extends BackgroundService {
    * Handle state changes for DiskBalancerService.
    */
   public synchronized void nodeStateUpdated(HddsProtos.NodeOperationalState state) {
-    DiskBalancerOperationalState originalServiceState = this.operationalState;
+    DiskBalancerRunningStatus originalServiceState = this.operationalState;
     boolean stateChanged = false;
 
     if ((state == HddsProtos.NodeOperationalState.DECOMMISSIONING ||
         state == HddsProtos.NodeOperationalState.ENTERING_MAINTENANCE) &&
-        this.operationalState == DiskBalancerOperationalState.RUNNING) {
+        this.operationalState == DiskBalancerRunningStatus.RUNNING) {
       LOG.info("Stopping DiskBalancerService as Node state changed to {}.", state);
-      this.operationalState = DiskBalancerOperationalState.PAUSED_BY_NODE_STATE;
+      this.operationalState = DiskBalancerRunningStatus.PAUSED;
       stateChanged = true;
     } else if (state == HddsProtos.NodeOperationalState.IN_SERVICE &&
-        this.operationalState == DiskBalancerOperationalState.PAUSED_BY_NODE_STATE) {
+        this.operationalState == DiskBalancerRunningStatus.PAUSED) {
       LOG.info("Resuming DiskBalancerService to running state as Node state changed to {}. ", state);
-      this.operationalState = DiskBalancerOperationalState.RUNNING;
+      this.operationalState = DiskBalancerRunningStatus.RUNNING;
       stateChanged = true;
     }
 
@@ -763,5 +774,10 @@ public class DiskBalancerService extends BackgroundService {
   @VisibleForTesting
   public static void setInjector(FaultInjector instance) {
     injector = instance;
+  }
+
+  @VisibleForTesting
+  public static void setReplicaDeletionDelayMills(long durationMills) {
+    replicaDeletionDelayMills = durationMills;
   }
 }
