@@ -20,7 +20,10 @@ package org.apache.hadoop.hdds.scm.storage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.hadoop.fs.ByteBufferReadable;
 import org.apache.ratis.util.Preconditions;
 
@@ -31,14 +34,28 @@ import org.apache.ratis.util.Preconditions;
 public class ByteBufferReader implements ByteReaderStrategy {
   private final ByteBuffer readBuf;
   private int targetLen;
+  private List<ByteBuffer> bufList;
 
   public ByteBufferReader(ByteBuffer buf) {
     this.readBuf = Objects.requireNonNull(buf, "buf == null");
     this.targetLen = buf.remaining();
   }
 
+  public ByteBufferReader(int len) {
+    if (len < 0) {
+      throw new IndexOutOfBoundsException();
+    }
+    this.readBuf = null;
+    this.targetLen = len;
+    this.bufList = new ArrayList<>();
+  }
+
   ByteBuffer getBuffer() {
     return readBuf;
+  }
+
+  List<ByteBuffer> getBufferList() {
+    return bufList;
   }
 
   int readImpl(InputStream inputStream) throws IOException {
@@ -49,22 +66,36 @@ public class ByteBufferReader implements ByteReaderStrategy {
   @Override
   public int readFromBlock(InputStream is, int numBytesToRead) throws
       IOException {
-    // change buffer limit
-    int bufferLimit = readBuf.limit();
-    if (numBytesToRead < targetLen) {
-      readBuf.limit(readBuf.position() + numBytesToRead);
-    }
-    int numBytesRead;
-    try {
-      numBytesRead = readImpl(is);
-    } finally {
-      // restore buffer limit
+    if (readBuf != null) {
+      // change buffer limit
+      int bufferLimit = readBuf.limit();
       if (numBytesToRead < targetLen) {
-        readBuf.limit(bufferLimit);
+        readBuf.limit(readBuf.position() + numBytesToRead);
       }
+      int numBytesRead;
+      try {
+        numBytesRead = readImpl(is);
+      } finally {
+        // restore buffer limit
+        if (numBytesToRead < targetLen) {
+          readBuf.limit(bufferLimit);
+        }
+      }
+      targetLen -= numBytesRead;
+      return numBytesRead;
+    } else if (is instanceof ExtendedInputStream) {
+      List<ByteBuffer> list = ((ExtendedInputStream) is).readBytes(numBytesToRead);
+      if (list != null) {
+        bufList.addAll(list);
+        int numBytesRead = list.stream().mapToInt(ByteBuffer::remaining).sum();
+        targetLen -= numBytesRead;
+        return numBytesRead;
+      }
+      return 0;
+    } else {
+      throw new NotImplementedException("readBytes is not implemented for " +
+          is.getClass().getSimpleName());
     }
-    targetLen -= numBytesRead;
-    return numBytesRead;
   }
 
   @Override

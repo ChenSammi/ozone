@@ -55,4 +55,6 @@ OZONE-SITE.XML_ozone.http.basedir=/tmp/ozone_http
 OZONE_CONF_DIR=/etc/hadoop
 OZONE_LOG_DIR=/var/log/hadoop
 
+OZONE-SITE.XML_ozone.client.stream.readblock.enable=true
+
 no_proxy=om1,om2,om3,scm,s3g,recon,kdc,localhost,127.0.0.1

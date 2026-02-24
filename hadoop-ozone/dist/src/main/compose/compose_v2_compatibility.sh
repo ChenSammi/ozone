@@ -19,6 +19,6 @@
 if docker compose version > /dev/null 2>&1; then
   echo "Using Docker Compose v2"
   docker-compose() {
-    docker compose --progress quiet "$@"
+    docker compose "$@"
   }
 fi

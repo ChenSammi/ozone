@@ -66,7 +66,8 @@ public class MultipartInputStream extends ExtendedInputStream {
 
     this.key = keyName;
     this.partStreams = Collections.unmodifiableList(inputStreams);
-    this.isStreamBlockInputStream = !inputStreams.isEmpty() && inputStreams.get(0) instanceof StreamBlockInputStream;
+    this.isStreamBlockInputStream = !inputStreams.isEmpty() &&
+        (inputStreams.get(0) instanceof StreamBlockInputStream);
 
     // Calculate and update the partOffsets
     this.partOffsets = new long[inputStreams.size()];
@@ -207,6 +208,17 @@ public class MultipartInputStream extends ExtendedInputStream {
       seek(oldPos);
     }
     return true;
+  }
+
+  @Override
+  public synchronized List<ByteBuffer> readBytes(int len) throws IOException {
+    if (!isStreamBlockInputStream) {
+      throw new UnsupportedOperationException("readBytes is not" +
+          " supported due to Stream Block read is disabled");
+    }
+    ByteBufferReader reader = new ByteBufferReader(len);
+    read(reader);
+    return reader.getBufferList();
   }
 
   public synchronized void initialize() throws IOException {

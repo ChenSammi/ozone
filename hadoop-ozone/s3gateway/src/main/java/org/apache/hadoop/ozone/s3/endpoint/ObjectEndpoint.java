@@ -50,6 +50,8 @@ import com.google.common.collect.ImmutableMap;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -60,6 +62,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -428,6 +431,7 @@ public class ObjectEndpoint extends ObjectOperationHandler {
         StreamingOutput output = dest -> {
           try (OzoneInputStream key = keyDetails.getContent()) {
             long readLength = IOUtils.copy(key, dest, getIOBufferSize(keyDetails.getDataSize()));
+            // long readLength = copy(key, dest, getIOBufferSize(keyDetails.getDataSize()));
             getMetrics().incGetKeySuccessLength(readLength);
             perf.appendSizeBytes(readLength);
           }
@@ -1127,7 +1131,28 @@ public class ObjectEndpoint extends ObjectOperationHandler {
       }
     }
   }
-  
+
+  public static long copy(OzoneInputStream inputStream, OutputStream outputStream, int bufferSize) throws IOException {
+    Objects.requireNonNull(inputStream, "inputStream");
+    Objects.requireNonNull(outputStream, "outputStream");
+
+    long count;
+    int n = 0;
+    List<ByteBuffer> bufferList;
+    for(count = 0L; bufferSize > 0 && null != (bufferList = inputStream.readBytes(bufferSize));) {
+      for(ByteBuffer buffer : bufferList) {
+        n = buffer.remaining();
+        count += n;
+        while(n > 0) {
+          outputStream.write(buffer.get());
+          n--;
+        }
+      }
+    }
+
+    return count;
+  }
+
   /** Request context shared among {@code ObjectOperationHandler}s. */
   final class ObjectRequestContext extends S3RequestContext {
     private final String bucketName;

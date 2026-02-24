@@ -23,6 +23,8 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -146,6 +148,36 @@ public class StreamBlockInputStream extends BlockExtendedInputStream {
     return readFully(targetBuf, true);
   }
 
+  @Override
+  public synchronized List<ByteBuffer> readBytes(int len) throws IOException {
+    checkOpen();
+    if (len < 0) {
+      throw new IllegalArgumentException("len < 0");
+    }
+
+    int read = 0;
+    List<ByteBuffer> returnBuf = new ArrayList<>();
+    while (read < len) {
+      if (!dataAvailableToRead(len, true)) {
+        break;
+      }
+      int toReturn = Math.min(buffer.remaining(), len);
+      ByteBuffer tmpBuf = buffer.duplicate();
+      tmpBuf.limit(tmpBuf.position() + toReturn);
+      buffer.position(tmpBuf.position() + toReturn);
+      returnBuf.add(tmpBuf);
+      position += toReturn;
+      read += toReturn;
+      if (LOG.isDebugEnabled()) {
+        LOG.debug(
+            "toReturn {} len {} position {}, buffer position {} remaining {} limit {}, returnBuf limit {} remaining {}",
+            toReturn, len, position, buffer.position(), buffer.remaining(), buffer.limit(),
+            tmpBuf.limit(), tmpBuf.remaining());
+      }
+    }
+    return read > 0 ? returnBuf : len == 0 ? new ArrayList<>() : null;
+  }
+
   synchronized int readFully(ByteBuffer targetBuf, boolean preRead) throws IOException {
     checkOpen();
     int read = 0;
@@ -174,6 +206,7 @@ public class StreamBlockInputStream extends BlockExtendedInputStream {
       return true;
     }
     buffer = streamingReader.read(length, preRead);
+    // LOG.info("Read {} {} with buffer {}, starts with position {} with preRead {}", buffer.remaining(), length, buffer.hashCode(), position, preRead);
     return bufferHasRemaining();
   }
 

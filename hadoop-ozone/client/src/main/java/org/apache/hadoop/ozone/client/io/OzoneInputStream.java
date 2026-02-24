@@ -20,6 +20,7 @@ package org.apache.hadoop.ozone.client.io;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.List;
 import org.apache.hadoop.fs.ByteBufferReadable;
 import org.apache.hadoop.fs.CanUnbuffer;
 import org.apache.hadoop.fs.Seekable;
@@ -62,6 +63,15 @@ public class OzoneInputStream extends InputStream implements CanUnbuffer,
       return ((ByteBufferReadable)inputStream).read(byteBuffer);
     } else {
       throw new UnsupportedOperationException("Read with ByteBuffer is not " +
+          " supported by " + inputStream.getClass().getName());
+    }
+  }
+
+  public List<ByteBuffer> readBytes(int len) throws IOException {
+    if (inputStream instanceof KeyInputStream) {
+      return ((KeyInputStream) inputStream).readBytes(len);
+    } else {
+      throw new UnsupportedOperationException("readBytes is not " +
           " supported by " + inputStream.getClass().getName());
     }
   }

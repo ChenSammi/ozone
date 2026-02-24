@@ -89,6 +89,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -263,6 +264,7 @@ abstract class OzoneRpcClientTests extends OzoneTestBase {
     conf.setInt(OZONE_SCM_RATIS_PIPELINE_LIMIT, 10);
     conf.setTimeDuration(OZONE_BLOCK_DELETING_SERVICE_INTERVAL, 1, TimeUnit.SECONDS);
     conf.setTimeDuration(OZONE_DIR_DELETING_SERVICE_INTERVAL, 1, TimeUnit.SECONDS);
+    conf.setBoolean("ozone.client.stream.readblock.enable", true);
 
     ClientConfigForTesting.newBuilder(StorageUnit.MB)
         .setDataStreamMinPacketSize(1)
@@ -1203,13 +1205,34 @@ abstract class OzoneRpcClientTests extends OzoneTestBase {
     }
   }
 
+  public static long copy(OzoneInputStream inputStream, byte[] fileContent) throws IOException {
+    Objects.requireNonNull(inputStream, "inputStream");
+
+    long count = 0;
+    int n = 0;
+    int size = fileContent.length / 2;
+    while (n < fileContent.length) {
+      List<ByteBuffer> bufferList = inputStream.readBytes(size);
+      for (ByteBuffer buffer : bufferList) {
+        count += buffer.remaining();
+        while (buffer.hasRemaining()) {
+          fileContent[n] = buffer.get();
+          n++;
+        }
+      }
+    }
+    return count;
+  }
+
   @Test
   public void testPutKey() throws IOException {
     String volumeName = UUID.randomUUID().toString();
     String bucketName = UUID.randomUUID().toString();
     Instant testStartTime = getTestStartTime();
 
-    String value = "sample value";
+    byte[] value = RandomUtils.nextBytes(5 * 1024 * 1024);
+
+    System.out.println("first byte " + value[0]);
     store.createVolume(volumeName);
     OzoneVolume volume = store.getVolume(volumeName);
     volume.createBucket(bucketName);
@@ -1220,16 +1243,16 @@ abstract class OzoneRpcClientTests extends OzoneTestBase {
 
       TestDataUtil.createKey(bucket, keyName,
           ReplicationConfig.fromTypeAndFactor(RATIS, ONE),
-          value.getBytes(UTF_8));
+          value);
       OzoneKey key = bucket.getKey(keyName);
       assertEquals(keyName, key.getName());
       try (OzoneInputStream is = bucket.readKey(keyName)) {
-        byte[] fileContent = new byte[value.getBytes(UTF_8).length];
-        IOUtils.readFully(is, fileContent);
+        byte[] fileContent = new byte[value.length];
+        copy(is, fileContent);
         verifyReplication(volumeName, bucketName, keyName,
             RatisReplicationConfig.getInstance(
                 HddsProtos.ReplicationFactor.ONE));
-        assertEquals(value, new String(fileContent, UTF_8));
+        assertArrayEquals(value, fileContent);
         assertFalse(key.getCreationTime().isBefore(testStartTime));
         assertFalse(key.getModificationTime().isBefore(testStartTime));
       }

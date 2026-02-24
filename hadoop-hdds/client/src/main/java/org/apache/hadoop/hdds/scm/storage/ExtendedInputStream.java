@@ -20,6 +20,7 @@ package org.apache.hadoop.hdds.scm.storage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.List;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.hadoop.fs.ByteBufferReadable;
 import org.apache.hadoop.fs.CanUnbuffer;
@@ -71,6 +72,10 @@ public abstract class ExtendedInputStream extends InputStream
       return 0;
     }
     return readWithStrategy(strategy);
+  }
+
+  public synchronized List<ByteBuffer> readBytes(int len) throws IOException {
+    throw new NotImplementedException("readBytes is not implemented");
   }
 
   /**

@@ -56,6 +56,8 @@ import javax.security.sasl.Sasl;
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.UnresolvedAddressException;
 import java.security.PrivilegedExceptionAction;
 import java.util.*;
 import java.util.Map.Entry;
@@ -890,7 +892,7 @@ public class Client implements AutoCloseable {
         throw ioe;
       }
       LOG.info("Retrying connect to server: " + server + ". Already tried "
-          + curRetries + " time(s); maxRetries=" + maxRetries);
+          + curRetries + " time(s); maxRetries=" + maxRetries, ioe);
     }
 
     private void handleConnectionFailure(int curRetries, IOException ioe
