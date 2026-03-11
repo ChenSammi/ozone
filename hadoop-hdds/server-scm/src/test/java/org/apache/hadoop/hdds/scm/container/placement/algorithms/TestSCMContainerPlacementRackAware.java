@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -39,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -64,6 +66,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -885,5 +888,58 @@ public class TestSCMContainerPlacementRackAware {
     assertThrows(SCMException.class,
             () -> policy.chooseDatanodes(usedNodes, null, null, 1, 0, 0),
             "No target datanode, this call should fail");
+  }
+
+  public static Stream<Arguments> data() {
+    return Stream.of(
+        arguments(15, new int[]{0, 1, NODE_PER_RACK}, null),
+        arguments(20, new int[]{0, 1, NODE_PER_RACK}, null),
+        arguments(25, new int[]{0, 1, NODE_PER_RACK}, null),
+        arguments(30, new int[]{0, 1, NODE_PER_RACK}, null),
+        arguments(15, new int[]{0, NODE_PER_RACK}, new int[]{1}),
+        arguments(20, new int[]{0, NODE_PER_RACK}, new int[]{1}),
+        arguments(25, new int[]{0, NODE_PER_RACK}, new int[]{1}),
+        arguments(30, new int[]{0, NODE_PER_RACK}, new int[]{1}),
+        arguments(15, new int[]{0,1}, new int[]{NODE_PER_RACK}),
+        arguments(20, new int[]{0,1}, new int[]{NODE_PER_RACK}),
+        arguments(25, new int[]{0,1}, new int[]{NODE_PER_RACK}),
+        arguments(30, new int[]{0,1}, new int[]{NODE_PER_RACK}),
+        arguments(15, new int[]{NODE_PER_RACK}, new int[]{0, 1}),
+        arguments(20, new int[]{NODE_PER_RACK}, new int[]{0, 1}),
+        arguments(25, new int[]{NODE_PER_RACK}, new int[]{0, 1}),
+        arguments(30, new int[]{NODE_PER_RACK}, new int[]{0, 1}));
+  }
+
+  @ParameterizedTest
+  @MethodSource("data")
+  public void testFourthFifthReplicasUseNewRacksWhenAvailable(
+      int datanodeNum, int[] usedNodeList, int[] excludeNodeList) throws SCMException {
+    // each rack has NODE_PER_RACK=5 nodes.
+    setup(datanodeNum);
+
+    List<DatanodeDetails> usedNodes = new ArrayList<>();
+    if (usedNodes != null) {
+      for (int i : usedNodeList) {
+        usedNodes.add(datanodes.get(i));
+      }
+    }
+
+    List<DatanodeDetails> excludedNodes = new ArrayList<>();
+    if (excludeNodeList != null) {
+      for (int i : excludeNodeList) {
+        excludedNodes.add(datanodes.get(i));
+      }
+    }
+
+    // Request the 4th and 5th replicas one-by-one.
+    for (int i = 0; i < 2; i++) {
+      List<DatanodeDetails> selected = policy.chooseDatanodes(
+          usedNodes, excludedNodes, null, 1, 0, 15);
+      assertEquals(1, selected.size());
+      for (DatanodeDetails target : selected) {
+        System.out.println("Selected: " + target + ", " + target.getNetworkFullPath());
+        usedNodes.add(target);
+      }
+    }
   }
 }
