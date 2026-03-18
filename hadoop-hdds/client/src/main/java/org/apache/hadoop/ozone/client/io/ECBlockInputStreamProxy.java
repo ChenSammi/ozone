@@ -202,6 +202,7 @@ public class ECBlockInputStreamProxy extends BlockExtendedInputStream {
       throws IOException {
     if (badLocations != null) {
       failedLocations.addAll(badLocations);
+      LOG.warn("add failed DN {}", badLocations);
     }
     blockReader.close();
     reconstructionReader = true;

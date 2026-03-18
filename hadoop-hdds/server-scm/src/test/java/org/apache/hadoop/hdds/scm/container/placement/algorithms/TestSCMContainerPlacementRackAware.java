@@ -892,6 +892,7 @@ public class TestSCMContainerPlacementRackAware {
 
   public static Stream<Arguments> data() {
     return Stream.of(
+        arguments(10, new int[]{0, 1, NODE_PER_RACK}, null),
         arguments(15, new int[]{0, 1, NODE_PER_RACK}, null),
         arguments(20, new int[]{0, 1, NODE_PER_RACK}, null),
         arguments(25, new int[]{0, 1, NODE_PER_RACK}, null),

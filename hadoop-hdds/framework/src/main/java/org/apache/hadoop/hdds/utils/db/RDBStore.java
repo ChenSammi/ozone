@@ -257,7 +257,9 @@ public class RDBStore implements DBStore {
     if (!readOnly) {
       try {
         // Flush to ensure all data is persisted to disk before closing.
-        flushDB();
+        if (db != null && !db.isClosed()) {
+          flushDB();
+        }
         LOG.debug("Successfully flushed DB before close");
       } catch (Exception e) {
         LOG.warn("Failed to flush DB before close", e);

@@ -279,7 +279,7 @@ public class ECBlockReconstructedStripeInputStream extends ECBlockInputStream {
     DatanodeDetails[] locations = getDataLocations();
     for (int i = 0; i < locations.length; i++) {
       if (locations[i] == null && failedDataIndexes.add(i)) {
-        LOG.debug("{}: marked [{}] as failed", this, i);
+        LOG.info("{}: marked [{}] as failed", this, i);
       }
     }
   }

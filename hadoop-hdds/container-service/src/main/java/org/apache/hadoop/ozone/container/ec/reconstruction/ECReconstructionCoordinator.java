@@ -235,6 +235,7 @@ public class ECReconstructionCoordinator implements Closeable {
         blockLocationInfo.getToken(), clientMetrics, streamBufferArgs, ecReconstructWriteExecutor);
   }
 
+
   @VisibleForTesting
   public void reconstructECBlockGroup(BlockLocationInfo blockLocationInfo,
       ECReplicationConfig repConfig,
@@ -305,7 +306,7 @@ public class ECReconstructionCoordinator implements Closeable {
                 // to try and recover from. Therefore we should log out the block
                 // group details in the same way as for the exception case below.
                 logBlockGroupDetails(blockLocationInfo, repConfig,
-                    blockDataGroup);
+                    blockDataGroup, readLen, length);
               }
             } catch (IOException e) {
               // When we see exceptions here, it could be due to some transient
@@ -317,7 +318,7 @@ public class ECReconstructionCoordinator implements Closeable {
               // length on each source, along with their chunk list and chunk
               // lengths etc.
               logBlockGroupDetails(blockLocationInfo, repConfig,
-                  blockDataGroup);
+                  blockDataGroup, 0, 0);
               throw e;
             }
             // TODO: can be submitted in parallel
@@ -351,11 +352,11 @@ public class ECReconstructionCoordinator implements Closeable {
   }
 
   private void logBlockGroupDetails(BlockLocationInfo blockLocationInfo,
-      ECReplicationConfig repConfig, BlockData[] blockDataGroup) {
+      ECReplicationConfig repConfig, BlockData[] blockDataGroup, long readSize, long remainingSize) {
     LOG.info("Block group details for {}. " +
-        "Replication Config {}. Calculated safe length: {}. ",
+        "Replication Config {}. Calculated safe length: {}. Read size {}. Remaining size {}",
         blockLocationInfo.getBlockID(), repConfig,
-        blockLocationInfo.getLength());
+        blockLocationInfo.getLength(), readSize, remainingSize);
     for (int i = 0; i < blockDataGroup.length; i++) {
       BlockData data = blockDataGroup[i];
       if (data == null) {

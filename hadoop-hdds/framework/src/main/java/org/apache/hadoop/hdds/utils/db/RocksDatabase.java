@@ -21,6 +21,7 @@ import static org.apache.hadoop.hdds.utils.db.managed.ManagedColumnFamilyOptions
 import static org.apache.hadoop.hdds.utils.db.managed.ManagedRocksIterator.managed;
 import static org.apache.hadoop.hdds.utils.db.managed.ManagedTransactionLogIterator.managed;
 import static org.rocksdb.RocksDB.listColumnFamilies;
+import static org.rocksdb.Status.SubCode.NoSpace;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.io.Closeable;
@@ -392,6 +393,8 @@ public final class RocksDatabase implements Closeable {
       }
       // async trigger the close event
       new Thread(() -> waitAndClose(), "DBCloser-" + name).start();
+      LOG.info("RocksDatabase {} is closed with sync[{}]", name, isSync);
+      new RuntimeException().printStackTrace();
     }
   }
 
@@ -421,6 +424,9 @@ public final class RocksDatabase implements Closeable {
     switch (e.getStatus().getCode()) {
     case Corruption:
     case IOError:
+      if (e.getStatus().getSubCode() == NoSpace) {
+        return false;
+      }
       return true;
     default:
       return false;
