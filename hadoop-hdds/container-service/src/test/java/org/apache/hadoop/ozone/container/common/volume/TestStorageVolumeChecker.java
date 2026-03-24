@@ -18,6 +18,7 @@
 package org.apache.hadoop.ozone.container.common.volume;
 
 import static org.apache.hadoop.hdfs.server.datanode.checker.VolumeCheckResult.FAILED;
+import static org.apache.hadoop.hdfs.server.datanode.checker.VolumeCheckResult.HEALTHY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,16 +32,25 @@ import static org.mockito.Mockito.when;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.io.File;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import com.google.common.util.concurrent.ListeningScheduledExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -64,6 +74,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -260,7 +271,7 @@ public class TestStorageVolumeChecker {
    */
   @Test
   public void testNumScansSkipped() throws Exception {
-    initTest(VolumeCheckResult.HEALTHY);
+    initTest(HEALTHY);
 
     final List<HddsVolume> volumes = makeVolumes(3, expectedVolumeHealth);
 
@@ -302,20 +313,139 @@ public class TestStorageVolumeChecker {
   }
 
   /**
+   * Test {@link StorageVolumeChecker#checkAllVolumes} propagates
+   * checks for all volumes to the delegate checker, and timeout
+   */
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testCheckTimeout(boolean triggerGC) throws Exception {
+    initTest(HEALTHY);
+
+    final List<HddsVolume> volumes = makeVolumes(1, expectedVolumeHealth);
+    OzoneConfiguration conf = new OzoneConfiguration();
+    DatanodeConfiguration dnConf = conf.getObject(DatanodeConfiguration.class);
+    dnConf.setDiskCheckTimeout(Duration.ofMillis(5000));
+    conf.setFromObject(dnConf);
+    final StorageVolumeChecker checker = new StorageVolumeChecker(conf, new FakeTimer(), "");
+    checker.setDelegateChecker(new DummyChecker(10000));
+    checker.start();
+
+    Lock lock = new ReentrantLock();
+    // Thread 1: Trigger GC
+    Thread gcThread = null;
+    if (triggerGC) {
+      gcThread = new Thread(() -> {
+        try {
+          triggerGC(lock, 100);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+      });
+    }
+    // Thread 2: Call checkAllVolumes 100 times
+    Thread checkerThread = new Thread(() -> {
+      try {
+        if (triggerGC) {
+          synchronized (lock) {
+            lock.wait();
+          }
+        }
+
+        try {
+          Set<? extends StorageVolume> failedVolumes = checker.checkAllVolumes(volumes);
+          if (triggerGC) {
+            assertTrue(failedVolumes.isEmpty());
+          } else {
+            assertEquals(1, failedVolumes.size());
+          }
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+    });
+
+    if (gcThread != null) {
+      gcThread.start();
+    }
+    checkerThread.start();
+
+    try {
+      if (gcThread != null) {
+        gcThread.join();
+      }
+      checkerThread.join();
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+
+    checker.shutdownAndWait(0, TimeUnit.SECONDS);
+  }
+
+  private void triggerGC(Lock lock, int sleepMs) throws InterruptedException {
+    LinkedList<Object> list = new LinkedList<>();
+    MemoryMXBean memBean = ManagementFactory.getMemoryMXBean();
+    MemoryUsage heapUsage = memBean.getHeapMemoryUsage();
+    long maxSize = (long)((heapUsage.getMax() - heapUsage.getUsed()) * 0.94);
+
+    System.out.println("Filling heap to create GC pressure...");
+    // Step 1: Fill the heap until it's nearly full
+    while (maxSize > 0) {
+      list.add(new byte[1024]); // 1KB objects
+      maxSize -= 1024;
+    }
+
+    synchronized (lock) {
+      lock.notify();
+    }
+
+    Thread.sleep(sleepMs);
+    System.out.println("Triggering Full GC. Expect a pause...");
+    long startTime = System.currentTimeMillis();
+    // Step 2: Manually suggest a Full GC
+    System.gc();
+
+    System.out.println("List size " + list.size() +
+        ", GC finished after " + (System.currentTimeMillis() - startTime) + "ms");
+  }
+
+  /**
    * A checker to wraps the result of {@link HddsVolume#check} in
    * an ImmediateFuture.
    */
   static class DummyChecker
       implements AsyncChecker<Boolean, VolumeCheckResult> {
+    private int sleepMs;
+    ListeningScheduledExecutorService scheduler;
+
+    public DummyChecker() {
+      this.sleepMs = 0;
+      this.scheduler = MoreExecutors.listeningDecorator(Executors.newScheduledThreadPool(1));
+    }
+
+    public DummyChecker(int sleepMs) {
+      this.sleepMs = sleepMs;
+      this.scheduler = MoreExecutors.listeningDecorator(Executors.newScheduledThreadPool(1));
+    }
 
     @Override
     public Optional<ListenableFuture<VolumeCheckResult>> schedule(
         Checkable<Boolean, VolumeCheckResult> target,
         Boolean context) {
       try {
-        LOG.info("Returning success for volume check");
-        return Optional.of(
-            Futures.immediateFuture(target.check(context)));
+        if (sleepMs > 0) {
+          ListenableFuture<VolumeCheckResult> future = scheduler.schedule(
+              () -> {
+                LOG.info("Return HEALTHY check result");
+                return VolumeCheckResult.HEALTHY;
+              }, sleepMs, TimeUnit.MILLISECONDS);
+          return Optional.of(future);
+        } else {
+          LOG.info("Return HEALTHY check result");
+          return Optional.of(
+              Futures.immediateFuture(target.check(context)));
+        }
       } catch (Exception e) {
         LOG.info("check routine threw exception", e);
         return Optional.of(Futures.immediateFailedFuture(e));
@@ -326,6 +456,7 @@ public class TestStorageVolumeChecker {
     public void shutdownAndWait(long timeout, TimeUnit timeUnit)
         throws InterruptedException {
       // Nothing to cancel.
+      this.scheduler.shutdown();
     }
   }
 

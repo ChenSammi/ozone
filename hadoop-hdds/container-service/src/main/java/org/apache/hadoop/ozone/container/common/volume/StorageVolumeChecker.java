@@ -26,7 +26,9 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
+import org.apache.hadoop.hdds.utils.CounterSlidingWindow;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -48,6 +50,7 @@ import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdfs.server.datanode.checker.VolumeCheckResult;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.apache.hadoop.util.Timer;
+import org.apache.ratis.util.JvmPauseMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -97,6 +100,8 @@ public class StorageVolumeChecker {
   private final List<VolumeSet> registeredVolumeSets;
 
   private final AtomicBoolean started;
+  private final JvmPauseMonitor jvmPauseMonitor;
+  private final CounterSlidingWindow counterSlidingWindow;
 
   /**
    * @param conf  Configuration object.
@@ -116,6 +121,9 @@ public class StorageVolumeChecker {
     minDiskCheckGapMs = dnConf.getDiskCheckMinGap().toMillis();
 
     lastAllVolumeSetsCheckComplete = timer.monotonicNow() - minDiskCheckGapMs;
+
+    counterSlidingWindow = new CounterSlidingWindow((int)(maxAllowedTimeForCheckMs / 1000 * 5),
+        dnConf.getDiskCheckTimeout());
 
     registeredVolumeSets = new ArrayList<>();
 
@@ -143,6 +151,15 @@ public class StorageVolumeChecker {
     this.diskCheckerservice = Executors.newSingleThreadScheduledExecutor(
         threadFactory);
 
+    this.jvmPauseMonitor = JvmPauseMonitor.newBuilder().setName("Datanode").setHandler(
+        extraSleepTime -> {
+      if (extraSleepTime.getDuration() > 5 * 1000) {
+        // if the extra pause is longer than 5s
+        counterSlidingWindow.add(extraSleepTime);
+        LOG.info("Extra pause of {} ms detected", extraSleepTime.getDuration() / (1000 * 1000));
+      }
+    }).build();
+
     started = new AtomicBoolean(false);
   }
 
@@ -154,6 +171,7 @@ public class StorageVolumeChecker {
           diskCheckerservice.scheduleWithFixedDelay(this::checkAllVolumeSets,
               periodicDiskCheckIntervalMinutes,
               periodicDiskCheckIntervalMinutes, TimeUnit.MINUTES);
+      jvmPauseMonitor.start();
     }
   }
 
@@ -249,6 +267,8 @@ public class StorageVolumeChecker {
     if (!latch.await(maxAllowedTimeForCheckMs, TimeUnit.MILLISECONDS)) {
       LOG.warn("checkAllVolumes timed out after {} ms",
           maxAllowedTimeForCheckMs);
+      // If GC is the reason for timeout, wait 2s for counterSlidingWindow get updated by JvmPauseMonitor
+      Thread.sleep(2000);
     }
 
     synchronized (this) {
@@ -257,7 +277,14 @@ public class StorageVolumeChecker {
       //
       // Make a copy under the mutex as Sets.difference() returns a view
       // of a potentially changing set.
-      return new HashSet<>(Sets.difference(allVolumes, healthyVolumes));
+      long value = counterSlidingWindow.getAccumulatedValueMs();
+      LOG.info("Total GC time during checking volumes: {} ms, threshold {} ms",
+          value, maxAllowedTimeForCheckMs * 0.9);
+      if (value > maxAllowedTimeForCheckMs * 0.9) {
+        return failedVolumes;
+      } else {
+        return new HashSet<>(Sets.difference(allVolumes, healthyVolumes));
+      }
     }
   }
 
@@ -419,6 +446,7 @@ public class StorageVolumeChecker {
       diskCheckerservice.shutdownNow();
       checkVolumeResultHandlerExecutorService.shutdownNow();
       metrics.unregister();
+      jvmPauseMonitor.stop();
       try {
         delegateChecker.shutdownAndWait(gracePeriod, timeUnit);
       } catch (InterruptedException e) {
