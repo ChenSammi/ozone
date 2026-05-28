@@ -1,0 +1,42 @@
+name: Trigger Copilot Code Review Globally
+
+on:
+  # 1. Triggers whenever a PR is made targeting ANY branch in the repo
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - '**'
+
+  # 2. OPTIONAL: Triggers directly on standard git pushes to any branch 
+  # (aligns with your frontmatter "review_on_push: true" parameter)
+  push:
+    branches:
+      - '**'
+    # Prevents triggering a duplicate run if a push happens inside an open PR
+    tags-ignore:
+      - '**'
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  request-copilot-review:
+    # Safely bypasses drafts if triggered by a PR event
+    if: github.event.pull_request.draft == false || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Request Review from Copilot Agent
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Dynamically switches targets depending on whether it's a push or a PR
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          if [ -n "$PR_URL" ]; then
+            echo "Pull Request detected on a non-default branch. Injecting Copilot..."
+            gh pr edit "$PR_URL" --add-reviewer "github-copilot[bot]" || gh pr edit "$PR_URL" --add-reviewer "copilot"
+          else
+            echo "Direct push detected on branch: ${{ github.ref_name }}. Copilot evaluation handled via background file parsing."
+          fi
+
