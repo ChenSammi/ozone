@@ -1,19 +1,9 @@
 name: Trigger Copilot Code Review Globally
 
 on:
-  # 1. Triggers whenever a PR is made targeting ANY branch in the repo
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
-      - '**'
-
-  # 2. OPTIONAL: Triggers directly on standard git pushes to any branch 
-  # (aligns with your frontmatter "review_on_push: true" parameter)
-  push:
-    branches:
-      - '**'
-    # Prevents triggering a duplicate run if a push happens inside an open PR
-    tags-ignore:
       - '**'
 
 permissions:
@@ -22,21 +12,42 @@ permissions:
 
 jobs:
   request-copilot-review:
-    # Safely bypasses drafts if triggered by a PR event
-    if: github.event.pull_request.draft == false || github.event_name == 'push'
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     
     steps:
-      - name: Request Review from Copilot Agent
+      - name: Request Review via GraphQL Bot Injection
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Dynamically switches targets depending on whether it's a push or a PR
-          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          REPO_OWNER: ${{ github.event.repository.owner.login }}
         run: |
-          if [ -n "$PR_URL" ]; then
-            echo "Pull Request detected on a non-default branch. Injecting Copilot..."
-            gh pr edit "$PR_URL" --add-reviewer "github-copilot[bot]" || gh pr edit "$PR_URL" --add-reviewer "copilot"
-          else
-            echo "Direct push detected on branch: ${{ github.ref_name }}. Copilot evaluation handled via background file parsing."
-          fi
+          echo "Fetching unique GraphQL Node ID for PR #$PR_NUMBER..."
+          
+          # 1. Fetch the raw internal node ID of the Pull Request
+          PR_NODE_ID=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $number: Int!) {
+              repository(owner: $owner, name: $repo) {
+                pullRequest(number: $number) {
+                  id
+                }
+              }
+            }
+          ' -F owner="$REPO_OWNER" -F repo="$REPO_NAME" -F number=$PR_NUMBER --jq '.data.repository.pullRequest.id')
+
+          echo "Found Node ID: $PR_NODE_ID. Injecting Copilot Review Bot..."
+
+          # 2. Force-assign Copilot using its canonical system Bot Node ID (BOT_kgDOCnlnWA)
+          gh api graphql -f query='
+            mutation($prId: ID!, $botIds: [ID!]!) {
+              requestReviews(input: { pullRequestId: $prId, botIds: $botIds }) {
+                pullRequest {
+                  id
+                }
+              }
+            }
+          ' -F prId="$PR_NODE_ID" -X POST -f botIds[]="BOT_kgDOCnlnWA"
+
+          echo "Copilot Code Review bot successfully assigned to non-default branch PR."
 
