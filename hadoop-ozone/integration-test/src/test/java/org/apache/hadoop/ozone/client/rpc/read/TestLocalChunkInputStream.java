@@ -54,7 +54,7 @@ import org.slf4j.event.Level;
  * Tests {@link LocalChunkInputStream}.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class TestShortCircuitChunkInputStream extends TestChunkInputStream {
+public class TestLocalChunkInputStream extends TestChunkInputStream {
 
   @TempDir
   private File dir;
