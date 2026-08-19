@@ -33,6 +33,16 @@ public final class S3STSUtils {
   public static final int DEFAULT_DURATION_SECONDS = 3600;    // 1 hour
   public static final int MAX_DURATION_SECONDS = 43200;       // 12 hours
   public static final int MIN_DURATION_SECONDS = 900;         // 15 minutes
+  public static final int TEST_MIN_DURATION_SECONDS = 1;      // 1 second
+
+  /**
+   * Test-only configuration property. When enabled, AssumeRole accepts
+   * {@link #TEST_MIN_DURATION_SECONDS}..{@link #MAX_DURATION_SECONDS} instead of enforcing the
+   * AWS-compatible 15-minute minimum.
+   */
+  public static final String OZONE_TEST_STS_ENABLED =
+      "ozone.test.sts.enabled";
+  public static final boolean OZONE_TEST_STS_ENABLED_DEFAULT = false;
 
   public static final int ASSUME_ROLE_SESSION_NAME_MIN_LENGTH = 2;
   public static final int ASSUME_ROLE_SESSION_NAME_MAX_LENGTH = 64;
@@ -59,19 +69,29 @@ public final class S3STSUtils {
 
   /**
    * Validates the duration in seconds.
-   * @param durationSeconds duration in seconds
+   * @param testEnabled is test environment enabled or not
    * @return validated duration
    * @throws OMException if duration is invalid
    */
+  public static int getMinDurationSeconds(boolean testEnabled) {
+    return testEnabled ? TEST_MIN_DURATION_SECONDS : MIN_DURATION_SECONDS;
+  }
+
   public static int validateDuration(Integer durationSeconds) throws OMException {
+    return validateDuration(durationSeconds, OZONE_TEST_STS_ENABLED_DEFAULT);
+  }
+
+  public static int validateDuration(Integer durationSeconds, boolean testEnabled)
+      throws OMException {
     if (durationSeconds == null) {
       return DEFAULT_DURATION_SECONDS;
     }
 
-    if (durationSeconds < MIN_DURATION_SECONDS || durationSeconds > MAX_DURATION_SECONDS) {
+    final int minDurationSeconds = getMinDurationSeconds(testEnabled);
+    if (durationSeconds < minDurationSeconds || durationSeconds > MAX_DURATION_SECONDS) {
       throw new OMException(
-          "Invalid Value: DurationSeconds must be between " + MIN_DURATION_SECONDS + " and " + MAX_DURATION_SECONDS +
-          " seconds", INVALID_REQUEST);
+          "Invalid Value: DurationSeconds must be between " + minDurationSeconds + " and " +
+              MAX_DURATION_SECONDS + " seconds", INVALID_REQUEST);
     }
 
     return durationSeconds;

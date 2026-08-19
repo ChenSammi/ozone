@@ -156,7 +156,10 @@ public class S3AssumeRoleRequest extends OMClientRequest {
     OMClientResponse omClientResponse;
     try {
       // Validate duration
-      S3STSUtils.validateDuration(durationSeconds);
+      final boolean allowShortDuration = ozoneManager.getConfiguration().getBoolean(
+          S3STSUtils.OZONE_TEST_STS_ENABLED,
+          S3STSUtils.OZONE_TEST_STS_ENABLED_DEFAULT);
+      S3STSUtils.validateDuration(durationSeconds, allowShortDuration);
 
       // Validate role session name
       S3STSUtils.validateRoleSessionName(roleSessionName);

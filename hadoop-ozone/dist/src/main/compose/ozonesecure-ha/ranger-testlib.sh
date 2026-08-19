@@ -43,7 +43,7 @@ setup_ranger_acceptance_env() {
 
   : "${DOWNLOAD_DIR:=${TEMP_DIR:-/tmp}}"
 
-  export COMPOSE_FILE=docker-compose.yaml:ranger.yaml:../common/ranger.yaml
+  export COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yaml:ranger.yaml:../common/ranger.yaml}"
   export OM_SERVICE_ID="omservice"
   export SCM=scm1.org
   export SECURITY_ENABLED=true

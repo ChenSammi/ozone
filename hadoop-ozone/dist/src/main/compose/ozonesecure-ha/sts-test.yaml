@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,18 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#suite:sts
+# Test-only overlay for STS acceptance: allow short AssumeRole durations.
+x-sts-test-config:
+  &sts-test-config
+  environment:
+    OZONE-SITE.XML_ozone.test.sts.enabled: "true"
 
-COMPOSE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-export COMPOSE_DIR
-
-# shellcheck source=/dev/null
-source "$COMPOSE_DIR/ranger-testlib.sh"
-
-export COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yaml:ranger.yaml:../common/ranger.yaml}:sts-test.yaml"
-
-setup_ranger_acceptance_env
-
-execute_robot_test s3g -v RANGER_ENDPOINT_URL:"http://ranger:6080" -v USER:hdfs security/ozone-secure-sts.robot
-execute_robot_test s3g -v RANGER_ENDPOINT_URL:"http://ranger:6080" -v USER:hdfs security/ozone-secure-sts-multitenant.robot
-"${COMPOSE_DIR}/polaris-smoketest.sh"
+services:
+  om1:
+    <<: *sts-test-config
+  om2:
+    <<: *sts-test-config
+  om3:
+    <<: *sts-test-config
+  s3g:
+    <<: *sts-test-config

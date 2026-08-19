@@ -245,8 +245,11 @@ public class S3STSEndpoint extends S3STSEndpointBase {
 
     final Set<String> validationErrors = new HashSet<>();
     int duration = durationSeconds == null ? S3STSUtils.DEFAULT_DURATION_SECONDS : durationSeconds;
+    final boolean allowShortDuration = getClient().getConfiguration().getBoolean(
+        S3STSUtils.OZONE_TEST_STS_ENABLED,
+        S3STSUtils.OZONE_TEST_STS_ENABLED_DEFAULT);
     try {
-      duration = S3STSUtils.validateDuration(durationSeconds);
+      duration = S3STSUtils.validateDuration(durationSeconds, allowShortDuration);
     } catch (OMException e) {
       validationErrors.add(e.getMessage());
     }

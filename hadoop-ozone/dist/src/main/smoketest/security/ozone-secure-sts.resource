@@ -28,7 +28,8 @@ ${STS_ENDPOINT_URL}                         http://s3g:9880/sts
 ${S3G_ENDPOINT_URL}                         http://s3g:9878
 ${ROLE_SESSION_NAME}                        sts-session-name
 ${EXPIRED_STS_TOKEN_PROFILE}                expired_sts_token
-${EXPIRED_STS_TOKEN_MIN_ELAPSED_SECONDS}    902
+${EXPIRED_STS_TOKEN_DURATION_SECONDS}       60
+${EXPIRED_STS_TOKEN_MIN_ELAPSED_SECONDS}    62
 
 *** Keywords ***
 Configure AWS Profile
@@ -118,8 +119,8 @@ Assume Role And Get Temporary Credentials
     Should Be True                ${time_diff} <= ${maximum_expected}           Expected expiration to be at most ${maximum_expected}s in the future, but was ${time_diff}s
 
 Assume Role And Store Expired STS Token Credentials
-    # Issue a 900s STS credential and store it in EXPIRED_STS_TOKEN_* globals only (it should never be used/modified until the "Expired STS temporary credentials return ExpiredToken on S3 APIs" test).
-    [Arguments]                   ${perm_access_key_id}  ${perm_secret_key}  ${role_arn}  ${duration_seconds}=900
+    # Issue a short-lived STS credential and store it in EXPIRED_STS_TOKEN_* globals for the expiration test.
+    [Arguments]                   ${perm_access_key_id}  ${perm_secret_key}  ${role_arn}  ${duration_seconds}=${EXPIRED_STS_TOKEN_DURATION_SECONDS}
     Configure AWS Profile         permanent  ${perm_access_key_id}  ${perm_secret_key}
     ${suffix} =                   Generate Random String        8    [LOWER]
     ${role_session_name} =        Set Variable                  expired-sts-token-${suffix}
@@ -141,7 +142,7 @@ Assume Role And Store Expired STS Token Credentials
     Set Global Variable           ${EXPIRED_STS_TOKEN_ISSUED_EPOCH}          ${issued_epoch}
 
 Wait Until Minimum Expired STS Token Lifetime Elapsed
-    # Matches the +/-2s skew tolerance used for AssumeRole duration checks: require 900 + 2 seconds before calling S3.
+    # Matches the +/-2s skew tolerance used for AssumeRole duration checks.
     ${now} =                      Get Current Date              result_format=epoch  time_zone=UTC
     ${elapsed} =                  Evaluate                      float('${now}') - float('${EXPIRED_STS_TOKEN_ISSUED_EPOCH}')
     ${remaining} =                Evaluate                      ${EXPIRED_STS_TOKEN_MIN_ELAPSED_SECONDS} - ${elapsed}

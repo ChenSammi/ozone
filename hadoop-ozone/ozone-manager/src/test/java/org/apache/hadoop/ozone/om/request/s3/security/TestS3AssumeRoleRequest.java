@@ -49,6 +49,7 @@ import org.apache.hadoop.ozone.om.OMMultiTenantManager;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.execution.flowcontrol.ExecutionContext;
 import org.apache.hadoop.ozone.om.helpers.OMAuditLogger;
+import org.apache.hadoop.ozone.om.helpers.S3STSUtils;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.AssumeRoleRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.AssumeRoleResponse;
@@ -158,6 +159,32 @@ public class TestS3AssumeRoleRequest {
         "Invalid Value: DurationSeconds must be between 900 and 43200 seconds");
     assertThat(omResponse.hasAssumeRoleResponse()).isFalse();
     assertMarkForAuditCalled(request);
+  }
+
+  @Test
+  public void testValidShortDurationWhenTestEnabled() throws IOException {
+    final OzoneConfiguration configuration = new OzoneConfiguration();
+    configuration.setBoolean(S3STSUtils.OZONE_TEST_STS_ENABLED, true);
+    when(ozoneManager.getConfiguration()).thenReturn(configuration);
+
+    final OMRequest omRequest = baseOmRequestBuilder()
+        .setAssumeRoleRequest(
+            AssumeRoleRequest.newBuilder()
+                .setRoleArn(ROLE_ARN_1)
+                .setRoleSessionName(SESSION_NAME)
+                .setDurationSeconds(60)
+                .setRequestId(REQUEST_ID)
+        ).build();
+
+    final S3AssumeRoleRequest request = new S3AssumeRoleRequest(omRequest, CLOCK);
+    final OMRequest preExecutedRequest = request.preExecute(ozoneManager);
+    final S3AssumeRoleRequest requestWithCredentials = new S3AssumeRoleRequest(preExecutedRequest, CLOCK);
+    final OMClientResponse response = requestWithCredentials.validateAndUpdateCache(ozoneManager, context);
+    final OMResponse omResponse = response.getOMResponse();
+
+    assertThat(omResponse.getStatus()).isEqualTo(Status.OK);
+    assertThat(omResponse.hasAssumeRoleResponse()).isTrue();
+    assertMarkForAuditCalled(requestWithCredentials);
   }
 
   @Test
