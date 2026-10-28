@@ -65,7 +65,7 @@ public final class XceiverServerDomainSocket implements XceiverServerSpi, Runnab
    * running out of memory.
    */
   private final int maxXceiverCount;
-  private final AtomicInteger xceriverCount;
+  private final AtomicInteger xcevierCount;
   private DomainSocket domainSocket;
   private final ConfigurationSource config;
   private final String threadPrefix;
@@ -94,7 +94,7 @@ public final class XceiverServerDomainSocket implements XceiverServerSpi, Runnab
         conf.getObject(DatanodeConfiguration.class).getNumReadThreadPerVolume();
     final int numberOfDisks = HddsServerUtil.getDatanodeStorageDirs(conf).size();
     this.maxXceiverCount = threadCountPerDisk * numberOfDisks * 5;
-    this.xceriverCount = new AtomicInteger(0);
+    this.xcevierCount = new AtomicInteger(0);
     this.dispatcher = dispatcher;
     this.readExecutors = executor;
     this.metrics = metrics;
@@ -218,7 +218,7 @@ public final class XceiverServerDomainSocket implements XceiverServerSpi, Runnab
         LOG.info("Accepted a new connection {}, xceriverCount {}", connSock, xceriverCount.get());
 
         // Make sure the xceiver count is not exceeded
-        if (xceriverCount.get() > maxXceiverCount) {
+        if (xcevierCount.get() > maxXceiverCount) {
           throw new IOException("Xceiver count exceeds the limit " + maxXceiverCount);
         }
         Daemon daemon = new Daemon(Receiver.create(peer, config, this, dispatcher, readExecutors, metrics));
@@ -322,7 +322,7 @@ public final class XceiverServerDomainSocket implements XceiverServerSpi, Runnab
     peers.remove(peer);
     peersReceiver.remove(peer);
     org.apache.hadoop.io.IOUtils.closeStream(peer);
-    xceriverCount.decrementAndGet();
+    xcevierCount.decrementAndGet();
     LOG.info("Peer {} is closed", peer.getDomainSocket());
   }
 

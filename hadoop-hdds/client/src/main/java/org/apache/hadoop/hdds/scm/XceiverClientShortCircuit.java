@@ -151,6 +151,9 @@ public class XceiverClientShortCircuit extends XceiverClientSpi {
    */
   @Override
   public synchronized void close() {
+    if (closed) {
+      return;
+    }
     closed = true;
     timer.cancel();
     if (domainSocket != null) {
@@ -173,7 +176,8 @@ public class XceiverClientShortCircuit extends XceiverClientSpi {
 
   @Override
   public boolean isClosed() {
-    return closed;
+    // The receive loop has exited once the domain socket is no longer open, and it cannot be restarted.
+    return closed || !isDomainSocketOpen.get();
   }
 
   @Override
