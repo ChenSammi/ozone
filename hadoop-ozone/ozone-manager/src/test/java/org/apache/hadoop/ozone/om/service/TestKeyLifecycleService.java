@@ -66,6 +66,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.security.PrivilegedExceptionAction;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -145,6 +146,7 @@ import org.apache.hadoop.ozone.security.acl.OzoneObjInfo;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.ozone.test.GenericTestUtils;
+import org.apache.ozone.test.MockClock;
 import org.apache.ozone.test.OzoneTestBase;
 import org.apache.ratis.util.ExitUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -204,6 +206,7 @@ class TestKeyLifecycleService extends OzoneTestBase {
   private long bucketObjectID;
   private final List<FaultInjectorImpl> installedInjectors = new ArrayList<>();
   private final Set<String> createdLifecyclePolicies = new HashSet<>();
+  private MockClock testClock;
 
   @Parameter(0)
   private long stateSaveInternal;
@@ -211,11 +214,14 @@ class TestKeyLifecycleService extends OzoneTestBase {
   @Parameter(1)
   private long maxKeysProcessedPerState;
 
+  @Parameter(2)
+  private boolean useDays;
+
   static Stream<Arguments> stateSaveConfiguration() {
     return Stream.of(
-        Arguments.of(1, 1),
+        Arguments.of(1, 1, false),
         Arguments.of(KeyLifecycleServiceConfig.Defaults.STATE_SAVE_INTERVAL_MS,
-            KeyLifecycleServiceConfig.Defaults.STATE_SAVE_KEYS_PROCESSED)
+            KeyLifecycleServiceConfig.Defaults.STATE_SAVE_KEYS_PROCESSED, true)
     );
   }
 
@@ -237,6 +243,9 @@ class TestKeyLifecycleService extends OzoneTestBase {
     conf.setBoolean(ENABLE_FILESYSTEM_PATHS, false);
     conf.setLong(KeyLifecycleServiceConfig.Keys.STATE_SAVE_INTERVAL_MS, stateSaveInternal);
     conf.setLong(KeyLifecycleServiceConfig.Keys.STATE_SAVE_KEYS_PROCESSED, maxKeysProcessedPerState);
+    testClock = new MockClock(Instant.now(), ZoneOffset.UTC);
+    OmLCAbortIncompleteMultipartUpload.setClock(testClock);
+    OmLCExpiration.setClock(testClock);
     OmLCExpiration.setTest(true);
     KeyLifecycleService.setTest(true);
   }
@@ -2226,11 +2235,11 @@ class TestKeyLifecycleService extends OzoneTestBase {
       String ruleID2 = String.valueOf(OBJECT_ID_COUNTER.getAndIncrement());
       ruleList.add(new OmLCRule.Builder().setId(ruleID1)
           .setEnabled(true).setPrefix(dir1)
-          .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+          .setAction(createExpiration(date.toString()))
           .build());
       ruleList.add(new OmLCRule.Builder().setId(ruleID2)
           .setEnabled(true).setPrefix(dir2)
-          .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+          .setAction(createExpiration(date.toString()))
           .build());
       createLifecyclePolicy(volumeName, bucketName, FILE_SYSTEM_OPTIMIZED, ruleList);
 
@@ -2302,17 +2311,17 @@ class TestKeyLifecycleService extends OzoneTestBase {
       String ruleID2 = String.valueOf(OBJECT_ID_COUNTER.getAndIncrement());
       ruleList.add(new OmLCRule.Builder().setId(ruleID1)
           .setEnabled(true).setPrefix(dir1)
-          .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+          .setAction(createExpiration(date.toString()))
           .build());
       ruleList.add(new OmLCRule.Builder().setId(ruleID2)
           .setEnabled(true).setPrefix(dir2)
-          .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+          .setAction(createExpiration(date.toString()))
           .build());
       if (dir3 != null) {
         String ruleID3 = String.valueOf(OBJECT_ID_COUNTER.getAndIncrement());
         ruleList.add(new OmLCRule.Builder().setId(ruleID3)
             .setEnabled(true).setPrefix(dir3)
-            .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+            .setAction(createExpiration(date.toString()))
             .build());
         keyList.add(createAndCommitKey(volumeName, bucketName, dir3 + "key3", 1, null));
       }
@@ -2320,7 +2329,7 @@ class TestKeyLifecycleService extends OzoneTestBase {
         String ruleID4 = String.valueOf(OBJECT_ID_COUNTER.getAndIncrement());
         ruleList.add(new OmLCRule.Builder().setId(ruleID4)
             .setEnabled(true).setPrefix(dir4)
-            .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+            .setAction(createExpiration(date.toString()))
             .build());
         keyList.add(createAndCommitKey(volumeName, bucketName, dir4 + "key4", 1, null));
       }
@@ -2443,11 +2452,11 @@ class TestKeyLifecycleService extends OzoneTestBase {
       String rulePrefix = bucketLayout == FILE_SYSTEM_OPTIMIZED ? "" : keyPrefix;
       ruleList.add(new OmLCRule.Builder().setId(String.valueOf(OBJECT_ID_COUNTER.getAndIncrement()))
           .setEnabled(false).setPrefix(rulePrefix)
-          .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+          .setAction(createExpiration(date.toString()))
           .build());
       ruleList.add(new OmLCRule.Builder().setId(String.valueOf(OBJECT_ID_COUNTER.getAndIncrement()))
           .setEnabled(true).setPrefix(rulePrefix)
-          .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+          .setAction(createExpiration(date.toString()))
           .build());
       createLifecyclePolicy(volumeName, bucketName, bucketLayout, ruleList);
 
@@ -2570,11 +2579,11 @@ class TestKeyLifecycleService extends OzoneTestBase {
       String rulePrefix = bucketLayout == FILE_SYSTEM_OPTIMIZED ? "" : keyPrefix;
       ruleList.add(new OmLCRule.Builder().setId(String.valueOf(OBJECT_ID_COUNTER.getAndIncrement()))
           .setEnabled(false).setPrefix(rulePrefix)
-          .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+          .setAction(createExpiration(date.toString()))
           .build());
       ruleList.add(new OmLCRule.Builder().setId(String.valueOf(OBJECT_ID_COUNTER.getAndIncrement()))
           .setEnabled(true).setPrefix(rulePrefix)
-          .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+          .setAction(createExpiration(date.toString()))
           .build());
       createLifecyclePolicy(volumeName, bucketName, bucketLayout, ruleList);
 
@@ -2657,11 +2666,11 @@ class TestKeyLifecycleService extends OzoneTestBase {
       List<OmLCRule> ruleList = new ArrayList<>();
       ruleList.add(new OmLCRule.Builder().setId(String.valueOf(OBJECT_ID_COUNTER.getAndIncrement()))
           .setEnabled(false).setPrefix(prefix)
-          .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+          .setAction(createExpiration(date.toString()))
           .build());
       ruleList.add(new OmLCRule.Builder().setId(String.valueOf(OBJECT_ID_COUNTER.getAndIncrement()))
           .setEnabled(true).setPrefix(prefix)
-          .setAction(new OmLCExpiration.Builder().setDate(date.toString()).build())
+          .setAction(createExpiration(date.toString()))
           .build());
       createLifecyclePolicy(volumeName, bucketName, bucketLayout, ruleList);
 
@@ -3091,9 +3100,7 @@ class TestKeyLifecycleService extends OzoneTestBase {
       OmLCRule.Builder ruleBuilder = new OmLCRule.Builder()
           .setId(String.valueOf(OBJECT_ID_COUNTER.getAndIncrement()))
           .setPrefix("")
-          .setAction(new OmLCExpiration.Builder()
-              .setDate(ZonedDateTime.now(ZoneOffset.UTC).toString())
-              .build());
+          .setAction(createExpiration(ZonedDateTime.now(ZoneOffset.UTC).toString()));
       OmLifecycleConfiguration policy = new OmLifecycleConfiguration.Builder()
           .setVolume(volumeName)
           .setBucket(bucketName)
@@ -3134,6 +3141,56 @@ class TestKeyLifecycleService extends OzoneTestBase {
         ozoneManagerField.set(keyLifecycleService, om);
         log.stopCapturing();
       }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"FILE_SYSTEM_OPTIMIZED", "OBJECT_STORE"})
+    void testKeyNotExpiredUntilDaysElapsed(BucketLayout bucketLayout)
+        throws IOException, TimeoutException, InterruptedException {
+      assumeTrue(useDays);
+      final String volumeName = getTestName();
+      final String bucketName = uniqueObjectName("bucket");
+      String keyPrefix = "key";
+      String rulePrefix = bucketLayout == FILE_SYSTEM_OPTIMIZED ? "" : keyPrefix;
+      long initialDeletedKeyCount = getDeletedKeyCount();
+      long initialKeyCount = getKeyCount(bucketLayout);
+
+      List<OmKeyArgs> keyList =
+          createKeys(volumeName, bucketName, bucketLayout, KEY_COUNT, 1, keyPrefix, null);
+      assertEquals(KEY_COUNT, keyList.size());
+      GenericTestUtils.waitFor(() -> getKeyCount(bucketLayout) - initialKeyCount == KEY_COUNT,
+          WAIT_CHECK_INTERVAL, 1000);
+
+      // Create a rule with days = 1 without advancing the clock
+      OmLCRule rule = new OmLCRule.Builder()
+          .setId(String.valueOf(OBJECT_ID_COUNTER.getAndIncrement()))
+          .setEnabled(true)
+          .setPrefix(rulePrefix)
+          .setAction(new OmLCExpiration.Builder().setDays(1).build())
+          .build();
+      createLifecyclePolicy(volumeName, bucketName, bucketLayout, Collections.singletonList(rule));
+
+      // Wait for at least one full scan to finish while keys are still within 1 day
+      String bucketKey = metadataManager.getBucketKey(volumeName, bucketName);
+      GenericTestUtils.waitFor(() -> {
+        try {
+          OmLifecycleScanState state = metadataManager.getLifecycleScanStateTable().get(bucketKey);
+          return state != null && state.getScanEndTime() != null;
+        } catch (IOException e) {
+          return false;
+        }
+      }, WAIT_CHECK_INTERVAL, 10000);
+
+      assertEquals(0, getDeletedKeyCount() - initialDeletedKeyCount);
+      assertEquals(KEY_COUNT, getKeyCount(bucketLayout) - initialKeyCount);
+
+      // Advance clock past the 1-day expiration threshold (2 days avoids any UTC-midnight rounding edge case)
+      testClock.fastForward(TimeUnit.DAYS.toMillis(2));
+
+      GenericTestUtils.waitFor(() ->
+          (getDeletedKeyCount() - initialDeletedKeyCount) == KEY_COUNT, WAIT_CHECK_INTERVAL, 10000);
+      assertEquals(0, getKeyCount(bucketLayout) - initialKeyCount);
+      deleteLifecyclePolicy(volumeName, bucketName);
     }
 
     @Test
@@ -3822,6 +3879,19 @@ class TestKeyLifecycleService extends OzoneTestBase {
     return keyList;
   }
 
+  private OmLCExpiration createExpiration(String date) {
+    OmLCExpiration.Builder builder = new OmLCExpiration.Builder();
+    if (useDays) {
+      builder.setDays(1);
+      // Advance clock past the 1-day threshold so keys created before policy creation expire
+      testClock.fastForward(TimeUnit.DAYS.toMillis(2));
+    } else {
+      builder.setDate(date);
+      testClock.set(Instant.now());
+    }
+    return builder.build();
+  }
+
   private OmLCFilter.Builder getOmLCFilterBuilder(String filterPrefix, Pair<String, String> filterTag,
       OmLifecycleRuleAndOperator andOperator) {
     OmLCFilter.Builder lcfBuilder = new OmLCFilter.Builder()
@@ -3854,9 +3924,7 @@ class TestKeyLifecycleService extends OzoneTestBase {
               .setEnabled(enabled)
               .setPrefix(prefix)
               .setFilter(filter)
-              .setAction(new OmLCExpiration.Builder()
-                  .setDate(date)
-                  .build())
+              .setAction(createExpiration(date))
               .build()))
           .build();
     } catch (IllegalArgumentException e) {
@@ -3985,6 +4053,9 @@ class TestKeyLifecycleService extends OzoneTestBase {
         }
       } finally {
         installedInjectors.clear();
+        testClock = new MockClock(Instant.now(), ZoneOffset.UTC);
+        OmLCAbortIncompleteMultipartUpload.setClock(testClock);
+        OmLCExpiration.setClock(testClock);
         KeyLifecycleService.setInjectors(null);
         keyLifecycleService.setOzoneTrash(null);
         keyLifecycleService.setMoveToTrashEnabled(true);

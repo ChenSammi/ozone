@@ -17,7 +17,9 @@
 
 package org.apache.hadoop.ozone.om.helpers;
 
+import com.google.common.annotations.VisibleForTesting;
 import jakarta.annotation.Nullable;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -34,6 +36,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Lifecyc
 public final class OmLCAbortIncompleteMultipartUpload implements OmLCAction {
   private final Integer daysAfterInitiation;
   private long daysInMilli;
+  private static Clock clock = Clock.systemUTC();
 
   private OmLCAbortIncompleteMultipartUpload() {
     throw new UnsupportedOperationException("Default constructor is not supported. Use Builder.");
@@ -55,7 +58,7 @@ public final class OmLCAbortIncompleteMultipartUpload implements OmLCAction {
    * @return true if the upload should be aborted, false otherwise
    */
   public boolean shouldAbort(long creationTimestamp) {
-    ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+    ZonedDateTime now = ZonedDateTime.now(clock);
     ZonedDateTime dateTime = ZonedDateTime.ofInstant(
         Instant.ofEpochMilli(creationTimestamp + daysInMilli), ZoneOffset.UTC);
     return now.isAfter(dateTime);
@@ -119,6 +122,11 @@ public final class OmLCAbortIncompleteMultipartUpload implements OmLCAction {
     return "OmLCAbortIncompleteMultipartUpload{" +
         "daysAfterInitiation=" + daysAfterInitiation +
         '}';
+  }
+
+  @VisibleForTesting
+  public static void setClock(Clock testClock) {
+    clock = testClock;
   }
 
   /**

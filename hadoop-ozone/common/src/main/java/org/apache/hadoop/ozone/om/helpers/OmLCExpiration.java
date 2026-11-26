@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.om.helpers;
 
 import com.google.common.annotations.VisibleForTesting;
 import jakarta.annotation.Nullable;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -41,6 +42,7 @@ public final class OmLCExpiration implements OmLCAction {
   private ZonedDateTime zonedDateTime;
   private long daysInMilli;
   private static boolean test;
+  private static Clock clock = Clock.systemUTC();
 
   private OmLCExpiration() {
     throw new UnsupportedOperationException("Default constructor is not supported. Use Builder.");
@@ -62,7 +64,7 @@ public final class OmLCExpiration implements OmLCAction {
   }
 
   public boolean isExpired(long timestamp) {
-    ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+    ZonedDateTime now = ZonedDateTime.now(clock);
     if (zonedDateTime != null) {
       return now.isAfter(zonedDateTime);
     } else {
@@ -182,6 +184,11 @@ public final class OmLCExpiration implements OmLCAction {
         "days=" + days +
         ", date='" + date + '\'' +
         '}';
+  }
+
+  @VisibleForTesting
+  public static void setClock(Clock testClock) {
+    clock = testClock;
   }
 
   /**
